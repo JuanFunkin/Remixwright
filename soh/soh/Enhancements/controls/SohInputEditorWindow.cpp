@@ -1879,6 +1879,7 @@ void RegisterInputEditorWidgets() {
         .Options(
             CheckboxOptions()
                 .Color(THEME_COLOR)
+                .DefaultValue(true)
                 .Tooltip(
                     "Enables free look camera control\nNote: You must remap C buttons off of the right stick in the "
                     "controller config menu, and map the camera stick to the right stick.\n"

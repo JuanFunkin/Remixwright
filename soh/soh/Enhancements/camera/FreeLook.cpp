@@ -12,7 +12,7 @@ extern "C" {
 }
 
 void RegisterFreeLookFixes() {
-    bool freeLook = CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0);
+    bool freeLook = CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 1);
 
     COND_VB_SHOULD(VB_RELEASE_DOORC_CAMERA, freeLook, {
         Camera* camera = va_arg(args, Camera*);

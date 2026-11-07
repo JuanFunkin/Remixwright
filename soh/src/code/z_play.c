@@ -684,7 +684,7 @@ void Play_Update(PlayState* play) {
         // ActorOverlayTable_LogPrint();
     }
 
-    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && Player_InCsMode(play)) {
+    if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 1) && Player_InCsMode(play)) {
         play->manualCamera = false;
     }
 

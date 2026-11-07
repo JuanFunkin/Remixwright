@@ -15,7 +15,7 @@ extern PlayState* gPlayState;
 static uint64_t lastSaveTimestamp;
 
 #define CVAR_AUTOSAVE_NAME CVAR_ENHANCEMENT("Autosave")
-#define CVAR_AUTOSAVE_DEFAULT AUTOSAVE_OFF
+#define CVAR_AUTOSAVE_DEFAULT AUTOSAVE_ON
 #define CVAR_AUTOSAVE_VALUE CVarGetInteger(CVAR_AUTOSAVE_NAME, CVAR_AUTOSAVE_DEFAULT)
 static constexpr uint64_t THREE_MINUTES_IN_UNIX = 3 * 60000;
 
