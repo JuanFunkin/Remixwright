@@ -204,17 +204,9 @@ void SohMenu::AddMenuEnhancements() {
     path.column = SECTION_COLUMN_1;
 
     AddWidget(path, "Saving", WIDGET_SEPARATOR_TEXT);
-    AddWidget(path, "Autosave", WIDGET_CVAR_CHECKBOX)
-        .CVar(CVAR_ENHANCEMENT("Autosave"))
-        .RaceDisable(false)
-        .Options(CheckboxOptions().DefaultValue(true).Tooltip(
-            "Save the game automatically on a 3 minute interval and when soft-resetting the game. The interval "
-            "autosave will wait if the game is paused in any way (dialogue, pause screen up, cutscenes, "
-            "etc.).\n\n"
-            "The soft-reset save will *not* trigger in cutscene maps like the Chamber of Sages!"));
+    // Autosave itself is always on in Remix of Harkinian. See Enhancements/QoL/Autosave.cpp.
     AddWidget(path, "Notification on Autosave", WIDGET_CVAR_CHECKBOX)
         .CVar(CVAR_ENHANCEMENT("AutosaveNotification"))
-        .PreFunc([](WidgetInfo& info) { info.isHidden = !CVarGetInteger(CVAR_ENHANCEMENT("Autosave"), 1); })
         .RaceDisable(false)
         .Options(CheckboxOptions().DefaultValue(true).Tooltip("Show a notification when the game is autosaved."));
 

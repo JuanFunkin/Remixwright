@@ -35,6 +35,10 @@ typedef struct {
     u8 maxTriforcePieces;
     bool hasFishingRod;
     bool fishingPoleShuffled;
+
+    // Remix of Harkinian: shown in the Continue list
+    s16 savedSceneNum; // scene the player was in when the file was last written
+    s64 savedAtUnix;   // seconds since epoch of the last write, 0 if unknown
 } SaveFileMetaInfo;
 
 typedef enum {
@@ -151,8 +155,25 @@ class SaveManager {
     using LoadStructFunc = std::function<void()>;
     void LoadStruct(const std::string& name, LoadStructFunc func);
 
-    static const int MaxFiles = 3;
+    // Remix of Harkinian slot layout:
+    //   0..2   playthrough files made by "New Game" (the original name entry only knows these three)
+    //   3..19  manual saves (written when an autosave is continued and then saved by hand)
+    //   20..24 autosaves, rotated so the newest few are always kept
+    static constexpr int PlaythroughFiles = 3;
+    static constexpr int ManualFiles = 20;
+    static constexpr int AutosaveFiles = 5;
+    static constexpr int MaxFiles = ManualFiles + AutosaveFiles;
     std::array<SaveFileMetaInfo, MaxFiles> fileMetaInfo;
+
+    static bool IsAutosaveSlot(int fileNum) {
+        return fileNum >= ManualFiles && fileNum < MaxFiles;
+    }
+    // First slot in [first, last) with no file, or -1.
+    int FindEmptySlot(int first, int last);
+    // An empty autosave slot, otherwise the oldest one. Never the slot currently being played.
+    int NextAutosaveSlot();
+    // Set while an autosave is being written so SaveFile does not treat it as a manual save.
+    bool autosaveInProgress = false;
 
   private:
     std::filesystem::path GetFileName(int fileNum);

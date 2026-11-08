@@ -3,6 +3,9 @@
 #include <filesystem>
 #include <array>
 #include <mutex>
+#include <chrono>
+#include <ctime>
+#include <system_error>
 #ifdef _WIN32
 #include <io.h>
 #elif !defined(__SWITCH__) && !defined(__WIIU__)
@@ -125,7 +128,36 @@ void SaveManager::ReadSaveFile(std::filesystem::path savePath, uintptr_t addr, v
 
 std::filesystem::path SaveManager::GetFileName(int fileNum) {
     const std::filesystem::path sSavePath(Ship::Context::GetPathRelativeToAppDirectory("Save"));
+    if (IsAutosaveSlot(fileNum)) {
+        return sSavePath / ("autosave" + std::to_string(fileNum - ManualFiles + 1) + ".sav");
+    }
     return sSavePath / ("file" + std::to_string(fileNum + 1) + ".sav");
+}
+
+int SaveManager::FindEmptySlot(int first, int last) {
+    for (int slot = first; slot < last && slot < MaxFiles; slot++) {
+        if (!fileMetaInfo[slot].valid && !std::filesystem::exists(GetFileName(slot))) {
+            return slot;
+        }
+    }
+    return -1;
+}
+
+int SaveManager::NextAutosaveSlot() {
+    int oldest = -1;
+    for (int slot = ManualFiles; slot < MaxFiles; slot++) {
+        // Never overwrite the autosave that is currently loaded and being played.
+        if (slot == (int)gSaveContext.fileNum) {
+            continue;
+        }
+        if (!fileMetaInfo[slot].valid && !std::filesystem::exists(GetFileName(slot))) {
+            return slot;
+        }
+        if (oldest < 0 || fileMetaInfo[slot].savedAtUnix < fileMetaInfo[oldest].savedAtUnix) {
+            oldest = slot;
+        }
+    }
+    return oldest;
 }
 
 std::vector<RandomizerHint> Rando::StaticData::oldVerHintOrder{
@@ -174,6 +206,8 @@ std::vector<RandomizerHint> Rando::StaticData::oldVerHintOrder{
 uint16_t Rando::StaticData::oldVerGossipStoneStart = 706;
 
 SaveManager::SaveManager() {
+    // There are more slots than the original three now, so start every one of them cleanly empty.
+    fileMetaInfo.fill(SaveFileMetaInfo{});
     coreSectionIDsByName["base"] = SECTION_ID_BASE;
     coreSectionIDsByName["randomizer"] = SECTION_ID_RANDOMIZER;
     coreSectionIDsByName["sohStats"] = SECTION_ID_STATS;
@@ -725,6 +759,17 @@ void SaveManager::StartupCheckAndInitMeta(int fileNum) {
         fileMetaInfo[fileNum].fishingPoleShuffled = false;
         fileMetaInfo[fileNum].defense = baseBlock["inventory"]["defenseHearts"];
         fileMetaInfo[fileNum].health = baseBlock["health"];
+        fileMetaInfo[fileNum].savedSceneNum = baseBlock.value("savedSceneNum", (int)SCENE_LINKS_HOUSE);
+
+        // The save has no timestamp of its own, so the time it was last written stands in for it.
+        fileMetaInfo[fileNum].savedAtUnix = 0;
+        std::error_code timeError;
+        auto fileTime = std::filesystem::last_write_time(fileName, timeError);
+        if (!timeError) {
+            auto systemTime = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+                fileTime - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now());
+            fileMetaInfo[fileNum].savedAtUnix = (s64)std::chrono::system_clock::to_time_t(systemTime);
+        }
 
         // isMasterQuest arrived in base version 2
         // older saves store this as a number rather than a bool
@@ -805,6 +850,8 @@ void SaveManager::InitMeta(int fileNum) {
     fileMetaInfo[fileNum].hasFishingRod = Flags_GetRandomizerInf(RAND_INF_FISHING_POLE_FOUND) || !IS_RANDO;
     fileMetaInfo[fileNum].defense = gSaveContext.inventory.defenseHearts;
     fileMetaInfo[fileNum].health = gSaveContext.health;
+    fileMetaInfo[fileNum].savedSceneNum = gSaveContext.savedSceneNum;
+    fileMetaInfo[fileNum].savedAtUnix = (s64)std::time(nullptr);
     auto randoContext = Rando::Context::GetInstance();
 
     fileMetaInfo[fileNum].maxTriforcePieces =
@@ -1336,6 +1383,18 @@ void SaveManager::SaveSection(int fileNum, int sectionID, bool threaded) {
 }
 
 void SaveManager::SaveFile(int fileNum) {
+    // Saving by hand while playing an autosave must not write into the autosave rotation, where the file would be
+    // overwritten later. Continue in a manual slot of its own instead, like loading an autosave in BotW and saving.
+    if (!autosaveInProgress && IsAutosaveSlot(fileNum)) {
+        int manualSlot = FindEmptySlot(PlaythroughFiles, ManualFiles);
+        if (manualSlot < 0) {
+            manualSlot = FindEmptySlot(0, PlaythroughFiles);
+        }
+        if (manualSlot >= 0) {
+            fileNum = manualSlot;
+            gSaveContext.fileNum = manualSlot;
+        }
+    }
     SaveSection(fileNum, SECTION_ID_BASE, true);
 }
 

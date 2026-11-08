@@ -12,17 +12,18 @@ extern PlayState* gPlayState;
 #include "variables.h"
 }
 
+// Remix of Harkinian: autosave is part of the game, not an option.
+//
+// Autosaves never overwrite the file being played. They rotate through their own slots (see
+// SaveManager::AutosaveFiles) so the newest few are always kept, and the title screen lists them next to the
+// playthrough files, like the autosaves of Breath of the Wild.
+
 static uint64_t lastSaveTimestamp;
+static bool sceneChangePending = false;
 
-#define CVAR_AUTOSAVE_NAME CVAR_ENHANCEMENT("Autosave")
-#define CVAR_AUTOSAVE_DEFAULT AUTOSAVE_ON
-#define CVAR_AUTOSAVE_VALUE CVarGetInteger(CVAR_AUTOSAVE_NAME, CVAR_AUTOSAVE_DEFAULT)
 static constexpr uint64_t THREE_MINUTES_IN_UNIX = 3 * 60000;
-
-typedef enum {
-    AUTOSAVE_OFF,
-    AUTOSAVE_ON,
-} AutosaveOptions;
+// Loading zones can come one after another, so scene change autosaves are spaced out.
+static constexpr uint64_t SCENE_CHANGE_MIN_SPACING = 30000;
 
 static bool Autosave_CanSave() {
     // Don't save when in title screen or debug file
@@ -41,9 +42,20 @@ static bool Autosave_CanSave() {
 }
 
 static void Autosave_PerformSave() {
-    Play_PerformSave(gPlayState);
+    int autosaveSlot = SaveManager::Instance->NextAutosaveSlot();
+    if (autosaveSlot < 0) {
+        return;
+    }
 
-    // Send notification
+    // SaveManager takes its copy of gSaveContext while Play_PerformSave runs, so pointing fileNum at the autosave
+    // slot only for that call is enough, and the file being played is left alone.
+    int playingSlot = gSaveContext.fileNum;
+    SaveManager::Instance->autosaveInProgress = true;
+    gSaveContext.fileNum = autosaveSlot;
+    Play_PerformSave(gPlayState);
+    gSaveContext.fileNum = playingSlot;
+    SaveManager::Instance->autosaveInProgress = false;
+
     if (CVarGetInteger(CVAR_ENHANCEMENT("AutosaveNotification"), 1)) {
         Notification::Emit({
             .message = "Game autosaved",
@@ -51,9 +63,25 @@ static void Autosave_PerformSave() {
     }
 }
 
-static void Autosave_IntervalSave() {
-    // Check if the interval has passed in minutes.
+static void Autosave_FrameUpdate() {
     uint64_t currentTimestamp = GetUnixTimestamp();
+
+    // Arriving in a new scene is a natural point to save. The scene needs a moment to settle first, which
+    // Autosave_CanSave covers, so the request waits until saving is allowed.
+    if (sceneChangePending) {
+        if (!GameInteractor::IsSaveLoaded(false)) {
+            sceneChangePending = false;
+        } else if ((currentTimestamp - lastSaveTimestamp) < SCENE_CHANGE_MIN_SPACING) {
+            sceneChangePending = false;
+        } else if (Autosave_CanSave() && !GameInteractor::IsGameplayPaused()) {
+            sceneChangePending = false;
+            lastSaveTimestamp = currentTimestamp;
+            Autosave_PerformSave();
+            return;
+        }
+    }
+
+    // Check if the interval has passed in minutes.
     if ((currentTimestamp - lastSaveTimestamp) < THREE_MINUTES_IN_UNIX) {
         return;
     }
@@ -63,9 +91,7 @@ static void Autosave_IntervalSave() {
     // rupees draining after buying an item. Since the interval can just retry until it
     // passes, it can use more conditions without hampering the player experience.
     if (Autosave_CanSave() && !GameInteractor::IsGameplayPaused()) {
-        // Reset timestamp, set icon timer to show autosave icon for 5 seconds (100 frames)
         lastSaveTimestamp = currentTimestamp;
-
         Autosave_PerformSave();
     }
 }
@@ -78,10 +104,15 @@ static void Autosave_SoftResetSave() {
 
 static void RegisterAutosave() {
     lastSaveTimestamp = GetUnixTimestamp();
-    COND_HOOK(GameInteractor::OnLoadGame, CVAR_AUTOSAVE_VALUE,
-              [](uint32_t fileNme) { lastSaveTimestamp = GetUnixTimestamp(); });
-    COND_HOOK(GameInteractor::OnGameFrameUpdate, CVAR_AUTOSAVE_VALUE, Autosave_IntervalSave);
-    COND_HOOK(GameInteractor::OnExitGame, CVAR_AUTOSAVE_VALUE, [](int32_t fileNum) { Autosave_SoftResetSave(); });
+    GameInteractor::Instance->RegisterGameHook<GameInteractor::OnLoadGame>([](uint32_t fileNum) {
+        lastSaveTimestamp = GetUnixTimestamp();
+        sceneChangePending = false;
+    });
+    GameInteractor::Instance->RegisterGameHook<GameInteractor::OnSceneInit>(
+        [](int16_t sceneNum) { sceneChangePending = true; });
+    GameInteractor::Instance->RegisterGameHook<GameInteractor::OnGameFrameUpdate>(Autosave_FrameUpdate);
+    GameInteractor::Instance->RegisterGameHook<GameInteractor::OnExitGame>(
+        [](int32_t fileNum) { Autosave_SoftResetSave(); });
 }
 
-static RegisterShipInitFunc initFunc(RegisterAutosave, { CVAR_AUTOSAVE_NAME });
+static RegisterShipInitFunc initFunc(RegisterAutosave);
