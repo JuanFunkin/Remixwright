@@ -18,6 +18,7 @@
 #include "soh/Enhancements/boss-rush/BossRush.h"
 #include "soh/Enhancements/speedrun/Speedrun.h"
 #include "soh/Enhancements/FileSelectEnhancements.h"
+#include "soh/Enhancements/Remix/RemixFileSelect.h"
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include <assert.h>
 #include "z64save.h"
@@ -153,6 +154,100 @@ static int FileChoose_IsSaveCompatible(const SaveFileMetaInfo* restrict meta) {
         valid = valid && ResourceMgr_GameHasOriginal();
     }
     return valid;
+}
+
+// Remix of Harkinian: the title menu is drawn by RemixFileSelect (ImGui). These drive the original code from it.
+// File being loaded from the Continue list, -1 when none. Any slot can be loaded, not only the three original ones.
+static s32 sRemixLoadSlot = -1;
+// File that "New Game" is creating. When the original name entry finishes and it exists, the game starts from it.
+static s32 sRemixPendingNewSlot = -1;
+// Makes FileChoose_UpdateMainMenu act as if A was pressed on the selected button this frame
+static u8 sRemixForceConfirm = 0;
+
+static void FileChoose_RemixPlaySfx(s32 sfx) {
+    u16 id;
+
+    switch (sfx) {
+        case REMIX_FS_SFX_CURSOR:
+            id = NA_SE_SY_FSEL_CURSOR;
+            break;
+        case REMIX_FS_SFX_DECIDE:
+            id = NA_SE_SY_FSEL_DECIDE_L;
+            break;
+        case REMIX_FS_SFX_CLOSE:
+            id = NA_SE_SY_FSEL_CLOSE;
+            break;
+        case REMIX_FS_SFX_ERROR:
+            id = NA_SE_SY_FSEL_ERROR;
+            break;
+        default:
+            return;
+    }
+    Audio_PlaySfxGeneral(id, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale, &gSfxDefaultFreqAndVolScale,
+                         &gSfxDefaultReverb);
+}
+
+// Skips the original confirmation screen: the Remix menu already asked Start or Cancel.
+static void FileChoose_RemixBeginLoad(FileChooseContext* this, s32 slot) {
+    if (!Save_GetSaveMetaInfo(slot)->valid || !FileChoose_IsSaveCompatible(Save_GetSaveMetaInfo(slot))) {
+        FileChoose_RemixPlaySfx(REMIX_FS_SFX_ERROR);
+        return;
+    }
+
+    sRemixLoadSlot = slot;
+    this->buttonIndex = (slot <= FS_BTN_MAIN_FILE_3) ? slot : FS_BTN_SELECT_FILE_1;
+    this->selectedFileIndex = this->buttonIndex;
+    this->menuMode = FS_MENU_MODE_SELECT;
+    this->selectMode = SM_FADE_OUT;
+    func_800F6964(0xF);
+}
+
+// Runs every frame while the main menu is on screen, before the original update.
+static void FileChoose_RemixMenuFrame(FileChooseContext* this) {
+    Input* input = &this->state.input[0];
+    s32 slot = 0;
+    s32 action;
+
+    // A file made by New Game is finished: go on and play it.
+    if (sRemixPendingNewSlot >= 0) {
+        s32 newSlot = sRemixPendingNewSlot;
+
+        sRemixPendingNewSlot = -1;
+        if (Save_GetSaveMetaInfo(newSlot)->valid) {
+            FileChoose_RemixBeginLoad(this, newSlot);
+            return;
+        }
+    }
+
+    FileChoose_RemixPlaySfx(RemixFileSelect_Input(
+        (this->stickRelY > 30) || CHECK_BTN_ALL(input->press.button, BTN_DUP),
+        (this->stickRelY < -30) || CHECK_BTN_ALL(input->press.button, BTN_DDOWN),
+        CHECK_BTN_ALL(input->press.button, BTN_A) || CHECK_BTN_ALL(input->press.button, BTN_START),
+        CHECK_BTN_ALL(input->press.button, BTN_B), CHECK_BTN_ALL(input->press.button, BTN_Z)));
+
+    // The original menu must not react to the same presses
+    input->press.button = 0;
+    this->stickRelX = 0;
+    this->stickRelY = 0;
+    this->warningLabel = FS_WARNING_NONE;
+    this->buttonIndex = FS_BTN_MAIN_OPTIONS;
+
+    action = RemixFileSelect_PollAction(&slot);
+    switch (action) {
+        case REMIX_FS_NEW_GAME:
+            this->buttonIndex = slot;
+            sRemixPendingNewSlot = slot;
+            sRemixForceConfirm = 1;
+            break;
+        case REMIX_FS_LOAD:
+            FileChoose_RemixBeginLoad(this, slot);
+            break;
+        case REMIX_FS_OPTIONS:
+            sRemixForceConfirm = 1;
+            break;
+        default:
+            break;
+    }
 }
 
 void FileChoose_SetView(FileChooseContext* this, f32 eyeX, f32 eyeY, f32 eyeZ) {
@@ -461,7 +556,9 @@ void FileChoose_UpdateMainMenu(GameState* thisx) {
         return;
     }
 
-    if (CHECK_BTN_ALL(input->press.button, BTN_START) || CHECK_BTN_ALL(input->press.button, BTN_A)) {
+    if (sRemixForceConfirm || CHECK_BTN_ALL(input->press.button, BTN_START) ||
+        CHECK_BTN_ALL(input->press.button, BTN_A)) {
+        sRemixForceConfirm = 0;
         if (this->buttonIndex <= FS_BTN_MAIN_FILE_3) {
             if (!Save_GetSaveMetaInfo(this->buttonIndex)->valid) {
                 Audio_PlaySfxGeneral(NA_SE_SY_FSEL_DECIDE_L, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
@@ -2708,15 +2805,17 @@ void FileChoose_LoadGame(GameState* thisx) {
     FileChooseContext* this = (FileChooseContext*)thisx;
     u16 swordEquipValue;
     s32 pad;
+    // Remix of Harkinian: the Continue list can pick files beyond the three the original menu knows
+    s32 fileSlot = (sRemixLoadSlot >= 0) ? sRemixLoadSlot : this->buttonIndex;
 
+    sRemixLoadSlot = -1;
     Audio_PlaySfxGeneral(NA_SE_SY_FSEL_DECIDE_L, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
                          &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
-    gSaveContext.fileNum = this->buttonIndex;
+    gSaveContext.fileNum = fileSlot;
     gSaveContext.gameMode = GAMEMODE_NORMAL;
     Randomizer_WaitForGeneration();
 
-    if ((this->buttonIndex == FS_BTN_SELECT_FILE_1 &&
-         Ship_QuestDebugEnabled(Save_GetSaveMetaInfo(this->buttonIndex)->quest)) ||
+    if ((fileSlot == FS_BTN_SELECT_FILE_1 && Ship_QuestDebugEnabled(Save_GetSaveMetaInfo(fileSlot)->quest)) ||
         this->buttonIndex == 0xFF) {
         if (this->buttonIndex == 0xFF) {
             Sram_InitDebugSave();
@@ -2926,6 +3025,9 @@ void FileChoose_Main(GameState* thisx) {
     Input* input = &this->state.input[0];
 
     Color_RGB8 helpTextColor = { 100, 255, 255 };
+    s32 remixMenu;
+    s32 remixHide;
+    s32 saved[24];
 
     GameInteractor_ExecuteOnFileChooseMain(thisx);
 
@@ -3073,8 +3175,56 @@ void FileChoose_Main(GameState* thisx) {
 
     this->emptyFileTextAlpha = 0;
 
+    // Remix of Harkinian: the main menu and the Continue list belong to RemixFileSelect
+    remixMenu = (this->menuMode == FS_MENU_MODE_CONFIG) && (this->configMode == CM_MAIN_MENU) && (sRemixLoadSlot < 0);
+    RemixFileSelect_SetVisible(remixMenu);
+    if (remixMenu) {
+        FileChoose_RemixMenuFrame(this);
+    }
+
     FileChoose_PulsateCursor(&this->state);
     gFileSelectUpdateFuncs[this->menuMode](&this->state);
+
+    // Hide the original menu while the Remix one is shown (and during the fade out into a game), putting the values
+    // back after drawing so the original animations are not disturbed.
+    remixHide = remixMenu || (sRemixLoadSlot >= 0);
+    if (remixHide) {
+        saved[0] = this->windowAlpha;
+        saved[1] = this->titleAlpha[0];
+        saved[2] = this->titleAlpha[1];
+        saved[3] = this->fileButtonAlpha[0];
+        saved[4] = this->fileButtonAlpha[1];
+        saved[5] = this->fileButtonAlpha[2];
+        saved[6] = this->nameBoxAlpha[0];
+        saved[7] = this->nameBoxAlpha[1];
+        saved[8] = this->nameBoxAlpha[2];
+        saved[9] = this->nameAlpha[0];
+        saved[10] = this->nameAlpha[1];
+        saved[11] = this->nameAlpha[2];
+        saved[12] = this->connectorAlpha[0];
+        saved[13] = this->connectorAlpha[1];
+        saved[14] = this->connectorAlpha[2];
+        saved[15] = this->fileInfoAlpha[0];
+        saved[16] = this->fileInfoAlpha[1];
+        saved[17] = this->fileInfoAlpha[2];
+        saved[18] = this->actionButtonAlpha[FS_BTN_ACTION_COPY];
+        saved[19] = this->actionButtonAlpha[FS_BTN_ACTION_ERASE];
+        saved[20] = this->optionButtonAlpha;
+        saved[21] = this->controlsAlpha;
+        saved[22] = this->confirmButtonAlpha[FS_BTN_CONFIRM_YES];
+        saved[23] = this->confirmButtonAlpha[FS_BTN_CONFIRM_QUIT];
+
+        this->windowAlpha = this->titleAlpha[0] = this->titleAlpha[1] = 0;
+        this->fileButtonAlpha[0] = this->fileButtonAlpha[1] = this->fileButtonAlpha[2] = 0;
+        this->nameBoxAlpha[0] = this->nameBoxAlpha[1] = this->nameBoxAlpha[2] = 0;
+        this->nameAlpha[0] = this->nameAlpha[1] = this->nameAlpha[2] = 0;
+        this->connectorAlpha[0] = this->connectorAlpha[1] = this->connectorAlpha[2] = 0;
+        this->fileInfoAlpha[0] = this->fileInfoAlpha[1] = this->fileInfoAlpha[2] = 0;
+        this->actionButtonAlpha[FS_BTN_ACTION_COPY] = this->actionButtonAlpha[FS_BTN_ACTION_ERASE] = 0;
+        this->optionButtonAlpha = this->controlsAlpha = 0;
+        this->confirmButtonAlpha[FS_BTN_CONFIRM_YES] = this->confirmButtonAlpha[FS_BTN_CONFIRM_QUIT] = 0;
+    }
+
     FrameInterpolation_StartRecord();
     gFileSelectDrawFuncs[this->menuMode](&this->state);
     FrameInterpolation_StopRecord();
@@ -3091,6 +3241,33 @@ void FileChoose_Main(GameState* thisx) {
                             0, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, G_TX_NOMASK,
                             G_TX_NOLOD, G_TX_NOLOD);
         gSPTextureRectangle(POLY_OPA_DISP++, 0x0168, 0x0330, 0x03A8, 0x0370, G_TX_RENDERTILE, 0, 0, 0x0400, 0x0400);
+    }
+
+    if (remixHide) {
+        this->windowAlpha = saved[0];
+        this->titleAlpha[0] = saved[1];
+        this->titleAlpha[1] = saved[2];
+        this->fileButtonAlpha[0] = saved[3];
+        this->fileButtonAlpha[1] = saved[4];
+        this->fileButtonAlpha[2] = saved[5];
+        this->nameBoxAlpha[0] = saved[6];
+        this->nameBoxAlpha[1] = saved[7];
+        this->nameBoxAlpha[2] = saved[8];
+        this->nameAlpha[0] = saved[9];
+        this->nameAlpha[1] = saved[10];
+        this->nameAlpha[2] = saved[11];
+        this->connectorAlpha[0] = saved[12];
+        this->connectorAlpha[1] = saved[13];
+        this->connectorAlpha[2] = saved[14];
+        this->fileInfoAlpha[0] = saved[15];
+        this->fileInfoAlpha[1] = saved[16];
+        this->fileInfoAlpha[2] = saved[17];
+        this->actionButtonAlpha[FS_BTN_ACTION_COPY] = saved[18];
+        this->actionButtonAlpha[FS_BTN_ACTION_ERASE] = saved[19];
+        this->optionButtonAlpha = saved[20];
+        this->controlsAlpha = saved[21];
+        this->confirmButtonAlpha[FS_BTN_CONFIRM_YES] = saved[22];
+        this->confirmButtonAlpha[FS_BTN_CONFIRM_QUIT] = saved[23];
     }
 
     // Draw rando save version warning over the controls text, but before the screen fill fade out
@@ -3313,6 +3490,10 @@ void FileChoose_Init(GameState* thisx) {
     size_t size = (u32)_title_staticSegmentRomEnd - (u32)_title_staticSegmentRomStart;
     s32 pad;
     this->logoAlpha = 0;
+    sRemixLoadSlot = -1;
+    sRemixPendingNewSlot = -1;
+    sRemixForceConfirm = 0;
+    RemixFileSelect_Reset();
     this->questType[0] = MIN_QUEST;
     this->questType[1] = MIN_QUEST;
     this->questType[2] = MIN_QUEST;

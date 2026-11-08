@@ -19,6 +19,7 @@
 
 #include "soh/Enhancements/debugger/MessageViewer.h"
 #include "soh/Notification/Notification.h"
+#include "soh/Enhancements/Remix/RemixFileSelect.h"
 #include "soh/Enhancements/TimeDisplay/TimeDisplay.h"
 #include "soh/Enhancements/mod_menu.h"
 #include "soh/Network/Anchor/Anchor.h"
@@ -109,6 +110,7 @@ std::shared_ptr<TimeSplits::TimesplitsSettingsWindow> mTimeSplitSettingsWindow;
 std::shared_ptr<PlandomizerWindow> mPlandomizerWindow;
 std::shared_ptr<SohModalWindow> mModalWindow;
 std::shared_ptr<Notification::Window> mNotificationWindow;
+std::shared_ptr<Ship::GuiWindow> mRemixFileSelectWindow;
 std::shared_ptr<TimeDisplayWindow> mTimeDisplayWindow;
 std::shared_ptr<AnchorRoomWindow> mAnchorRoomWindow;
 
@@ -266,6 +268,9 @@ void SetupGuiElements() {
     mNotificationWindow = std::make_shared<Notification::Window>(CVAR_WINDOW("Notifications"), "Notifications Window");
     gui->AddGuiWindow(mNotificationWindow);
     mNotificationWindow->Show();
+    mRemixFileSelectWindow = RemixFileSelect_CreateWindow();
+    gui->AddGuiWindow(mRemixFileSelectWindow);
+    mRemixFileSelectWindow->Show();
     mTimeDisplayWindow = std::make_shared<TimeDisplayWindow>(CVAR_WINDOW("TimeDisplayEnabled"), "Additional Timers");
     gui->AddGuiWindow(mTimeDisplayWindow);
     mAnchorRoomWindow = std::make_shared<AnchorRoomWindow>(CVAR_WINDOW("AnchorRoom"), "Anchor Room");
@@ -277,6 +282,7 @@ void Destroy() {
     gui->RemoveAllGuiWindows();
 
     mNotificationWindow = nullptr;
+    mRemixFileSelectWindow = nullptr;
     mModalWindow = nullptr;
     mItemTrackerWindow = nullptr;
     mItemTrackerSettingsWindow = nullptr;
