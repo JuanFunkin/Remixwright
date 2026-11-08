@@ -30,6 +30,7 @@
 #include "soh/frame_interpolation.h"
 #include "soh/OTRGlobals.h"
 #include "soh/Enhancements/savestate_serialize.h"
+#include "soh/Enhancements/Remix/RemixOcarinaCamera.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -6106,7 +6107,11 @@ s32 Player_ActionHandler_13(Player* this, PlayState* play) {
                     Player_SetupActionPreserveItemAction(play, this, Player_Action_8084E3C4, 0);
                     Player_AnimPlayOnceAdjusted(play, this, &gPlayerAnim_link_normal_okarina_start);
                     this->stateFlags2 |= PLAYER_STATE2_OCARINA_PLAYING;
-                    Player_SetTurnAroundCamera(play, (this->unk_6A8 != NULL) ? CAM_ITEM_TYPE_91 : CAM_ITEM_TYPE_90);
+                    // Remix of Harkinian: playing alone keeps the normal camera (free to move, no black bars)
+                    if (!RemixOcarinaCamera_Begin(play, this)) {
+                        Player_SetTurnAroundCamera(play,
+                                                   (this->unk_6A8 != NULL) ? CAM_ITEM_TYPE_91 : CAM_ITEM_TYPE_90);
+                    }
                     if (this->unk_6A8 != NULL) {
                         this->stateFlags2 |= PLAYER_STATE2_PLAY_FOR_ACTOR;
                         Camera_SetParam(Play_GetCamera(play, 0), 8, this->unk_6A8);
