@@ -88,6 +88,7 @@
 #include "Enhancements/game-interactor/GameInteractor.h"
 #include "Enhancements/randomizer/draw.h"
 #include <libultraship/controller/controldeck/ControlDeck.h>
+#include <libultraship/controller/controldevice/controller/mapping/ControllerDefaultMappings.h>
 #include <fast/resource/ResourceType.h>
 
 // Resource Types/Factories
@@ -287,6 +288,44 @@ OTRGlobals::OTRGlobals() {
     context->InitConfiguration();
     context->InitConsoleVariables();
 
+    // Remix of Harkinian keyboard defaults: WASD moves, UJHK is the right stick (free look camera). The D-pad moves
+    // to 1-4 so it does not clash with H.
+    using Ship::KbScancode;
+    auto remixDefaultMappings = std::make_shared<LUS::ControllerDefaultMappings>(
+        std::unordered_map<CONTROLLERBUTTONS_T, std::unordered_set<KbScancode>>({
+            { BTN_A, { KbScancode::LUS_KB_X } },
+            { BTN_B, { KbScancode::LUS_KB_C } },
+            { BTN_L, { KbScancode::LUS_KB_E } },
+            { BTN_R, { KbScancode::LUS_KB_R } },
+            { BTN_Z, { KbScancode::LUS_KB_Z } },
+            { BTN_START, { KbScancode::LUS_KB_SPACE } },
+            { BTN_CUP, { KbScancode::LUS_KB_ARROWKEY_UP } },
+            { BTN_CDOWN, { KbScancode::LUS_KB_ARROWKEY_DOWN } },
+            { BTN_CLEFT, { KbScancode::LUS_KB_ARROWKEY_LEFT } },
+            { BTN_CRIGHT, { KbScancode::LUS_KB_ARROWKEY_RIGHT } },
+            { BTN_DUP, { KbScancode::LUS_KB_1 } },
+            { BTN_DLEFT, { KbScancode::LUS_KB_2 } },
+            { BTN_DDOWN, { KbScancode::LUS_KB_3 } },
+            { BTN_DRIGHT, { KbScancode::LUS_KB_4 } },
+        }),
+        std::unordered_map<Ship::StickIndex, std::vector<std::pair<Ship::Direction, KbScancode>>>({
+            { Ship::LEFT_STICK,
+              { { Ship::LEFT, KbScancode::LUS_KB_A },
+                { Ship::RIGHT, KbScancode::LUS_KB_D },
+                { Ship::UP, KbScancode::LUS_KB_W },
+                { Ship::DOWN, KbScancode::LUS_KB_S } } },
+            { Ship::RIGHT_STICK,
+              { { Ship::LEFT, KbScancode::LUS_KB_H },
+                { Ship::RIGHT, KbScancode::LUS_KB_K },
+                { Ship::UP, KbScancode::LUS_KB_U },
+                { Ship::DOWN, KbScancode::LUS_KB_J } } },
+        }),
+        std::unordered_map<CONTROLLERBUTTONS_T, std::unordered_set<SDL_GameControllerButton>>(),
+        std::unordered_map<Ship::StickIndex, std::vector<std::pair<Ship::Direction, SDL_GameControllerButton>>>(),
+        std::unordered_map<CONTROLLERBUTTONS_T, std::vector<std::pair<SDL_GameControllerAxis, int32_t>>>(),
+        std::unordered_map<Ship::StickIndex,
+                           std::vector<std::pair<Ship::Direction, std::pair<SDL_GameControllerAxis, int32_t>>>>());
+
     auto controlDeck = std::make_shared<LUS::ControlDeck>(std::vector<CONTROLLERBUTTONS_T>({
         BTN_CUSTOM_MODIFIER1,
         BTN_CUSTOM_MODIFIER2,
@@ -298,6 +337,13 @@ OTRGlobals::OTRGlobals() {
         BTN_CUSTOM_OCARINA_DISABLE_SONGS,
         BTN_CUSTOM_OCARINA_PITCH_UP,
         BTN_CUSTOM_OCARINA_PITCH_DOWN,
+    }),
+    remixDefaultMappings,
+    std::unordered_map<CONTROLLERBUTTONS_T, std::string>({
+        { BTN_A, "A" }, { BTN_B, "B" }, { BTN_L, "L" }, { BTN_R, "R" }, { BTN_Z, "Z" },
+        { BTN_START, "Start" }, { BTN_CLEFT, "CLeft" }, { BTN_CRIGHT, "CRight" }, { BTN_CUP, "CUp" },
+        { BTN_CDOWN, "CDown" }, { BTN_DLEFT, "DLeft" }, { BTN_DRIGHT, "DRight" }, { BTN_DUP, "DUp" },
+        { BTN_DDOWN, "DDown" },
     }));
     context->InitControlDeck(controlDeck);
     context->InitResourceManager({ portArchivePath }, {}, 3, true);

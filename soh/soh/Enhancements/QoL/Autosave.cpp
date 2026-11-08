@@ -1,7 +1,6 @@
 #include <libultraship/bridge/consolevariablebridge.h>
 
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
-#include "soh/Notification/Notification.h"
 #include "soh/ShipInit.hpp"
 #include "soh/SaveManager.h"
 
@@ -55,12 +54,7 @@ static void Autosave_PerformSave() {
     Play_PerformSave(gPlayState);
     gSaveContext.fileNum = playingSlot;
     SaveManager::Instance->autosaveInProgress = false;
-
-    if (CVarGetInteger(CVAR_ENHANCEMENT("AutosaveNotification"), 1)) {
-        Notification::Emit({
-            .message = "Game autosaved",
-        });
-    }
+    // No message and no sound: autosaves are meant to go unnoticed.
 }
 
 static void Autosave_FrameUpdate() {

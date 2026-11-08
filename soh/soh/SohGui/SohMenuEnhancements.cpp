@@ -204,12 +204,7 @@ void SohMenu::AddMenuEnhancements() {
     path.column = SECTION_COLUMN_1;
 
     AddWidget(path, "Saving", WIDGET_SEPARATOR_TEXT);
-    // Autosave itself is always on in Remix of Harkinian. See Enhancements/QoL/Autosave.cpp.
-    AddWidget(path, "Notification on Autosave", WIDGET_CVAR_CHECKBOX)
-        .CVar(CVAR_ENHANCEMENT("AutosaveNotification"))
-        .RaceDisable(false)
-        .Options(CheckboxOptions().DefaultValue(true).Tooltip("Show a notification when the game is autosaved."));
-
+    // Autosave is always on and silent in Remix of Harkinian. See Enhancements/QoL/Autosave.cpp.
     AddWidget(path, "Remember Save Location", WIDGET_CVAR_CHECKBOX)
         .CVar(CVAR_ENHANCEMENT("RememberSaveLocation"))
         .Options(CheckboxOptions().Tooltip(
