@@ -307,6 +307,7 @@ OTRGlobals::OTRGlobals() {
             { BTN_DLEFT, { KbScancode::LUS_KB_2 } },
             { BTN_DDOWN, { KbScancode::LUS_KB_3 } },
             { BTN_DRIGHT, { KbScancode::LUS_KB_4 } },
+            { BTN_CUSTOM_REMIX_JUMP, { KbScancode::LUS_KB_V } },
         }),
         std::unordered_map<Ship::StickIndex, std::vector<std::pair<Ship::Direction, KbScancode>>>({
             { Ship::LEFT_STICK,
@@ -320,7 +321,9 @@ OTRGlobals::OTRGlobals() {
                 { Ship::UP, KbScancode::LUS_KB_U },
                 { Ship::DOWN, KbScancode::LUS_KB_J } } },
         }),
-        std::unordered_map<CONTROLLERBUTTONS_T, std::unordered_set<SDL_GameControllerButton>>(),
+        std::unordered_map<CONTROLLERBUTTONS_T, std::unordered_set<SDL_GameControllerButton>>({
+            { BTN_CUSTOM_REMIX_JUMP, { SDL_CONTROLLER_BUTTON_X } },
+        }),
         std::unordered_map<Ship::StickIndex, std::vector<std::pair<Ship::Direction, SDL_GameControllerButton>>>(),
         std::unordered_map<CONTROLLERBUTTONS_T, std::vector<std::pair<SDL_GameControllerAxis, int32_t>>>(),
         std::unordered_map<Ship::StickIndex,
@@ -337,6 +340,7 @@ OTRGlobals::OTRGlobals() {
         BTN_CUSTOM_OCARINA_DISABLE_SONGS,
         BTN_CUSTOM_OCARINA_PITCH_UP,
         BTN_CUSTOM_OCARINA_PITCH_DOWN,
+        BTN_CUSTOM_REMIX_JUMP,
     }),
     remixDefaultMappings,
     std::unordered_map<CONTROLLERBUTTONS_T, std::string>({

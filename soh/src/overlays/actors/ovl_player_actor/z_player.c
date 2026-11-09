@@ -8718,6 +8718,11 @@ void Player_Action_8084193C(Player* this, PlayState* play) {
         }
 
         speedTarget *= 0.9f;
+        // Remix: hold A while moving to sprint (same run animation, played faster through linearVelocity).
+        if (CHECK_BTN_ALL(sControlInput->cur.button, BTN_A) && !Player_FriendlyLockOnOrParallel(this) &&
+            (sFloorType != 7) && !(this->stateFlags1 & PLAYER_STATE1_IN_WATER)) {
+            speedTarget *= 1.35f;
+        }
         Math_AsymStepToF(&this->linearVelocity, speedTarget, 2.0f, 3.0f);
         Math_ScaledStepToS(&this->yaw, yawTarget, temp3 * 0.1f);
     }
@@ -12086,6 +12091,18 @@ void Player_UpdateCommon(Player* this, PlayState* play, Input* input) {
         sInvWaterSpeedFactor = 1.0f / sWaterSpeedFactor;
         sUseHeldItem = sHeldItemButtonIsHeldDown = 0;
         sSavedCurrentMask = this->currentMask;
+
+        // Remix: jump with the X button while idle or running on the ground.
+        if (CHECK_BTN_ALL(input->press.button, BTN_CUSTOM_REMIX_JUMP) &&
+            ((this->actionFunc == Player_Action_Idle) || (this->actionFunc == Player_Action_8084193C) ||
+             (this->actionFunc == Player_Action_808407CC)) &&
+            (this->actor.bgCheckFlags & BGCHECKFLAG_GROUND) && (this->actor.category == ACTORCAT_PLAYER) &&
+            !(this->stateFlags1 & (PLAYER_STATE1_IN_WATER | PLAYER_STATE1_IN_CUTSCENE | PLAYER_STATE1_CARRYING_ACTOR |
+                                   PLAYER_STATE1_ON_HORSE | PLAYER_STATE1_CLIMBING_LEDGE)) &&
+            !(this->stateFlags2 & PLAYER_STATE2_OCARINA_PLAYING) && (play->transitionTrigger == TRANS_TRIGGER_OFF) &&
+            (sFloorType != 7) && (this->unk_6AD == 0)) {
+            func_8083A4A8(this, play);
+        }
 
         if (GameInteractor_Should(VB_EXECUTE_PLAYER_ACTION_FUNC, !(this->stateFlags3 & PLAYER_STATE3_PAUSE_ACTION_FUNC),
                                   this, input)) {
