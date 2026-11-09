@@ -33,6 +33,12 @@ int RemixFileSelect_Input(int up, int down, int confirm, int back, int erase);
 int RemixFileSelect_PollAction(int* slot, int* kind);
 // 1 when an action was chosen and has not been collected yet
 int RemixFileSelect_HasPending(void);
+// The pending action without collecting it
+int RemixFileSelect_PendingAction(void);
+// 1 when the menu is on the title screen (Options opens the settings menu there), 0 on the file select
+void RemixFileSelect_SetHost(int title);
+// Black over everything, 0..255. The title screen fades out with it before leaving.
+void RemixFileSelect_SetFade(int alpha);
 // Opacity of the logo, 0..255. The title screen fades it in and out.
 void RemixFileSelect_SetLogoAlpha(int alpha);
 // Back to the first screen, called when the file select starts. A chosen action is kept.

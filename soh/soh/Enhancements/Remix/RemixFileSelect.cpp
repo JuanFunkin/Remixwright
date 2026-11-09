@@ -42,6 +42,8 @@ struct State {
     int pendingSlot = -1;
     int pendingKind = -1;
     int logoAlpha = 0; // 0..255, the title screen fades the logo in
+    int fadeAlpha = 0; // 0..255 black over everything, the title screen fades out with it
+    bool titleHost = false; // the menu is on the title screen, not on the file select
     int sfx = REMIX_FS_SFX_NONE;
 };
 
@@ -265,7 +267,16 @@ void ActivateMain() {
             break;
         }
         default:
-            Act(REMIX_FS_OPTIONS, 0);
+            if (sState.titleHost) {
+                // On the title screen the settings menu opens right over Link and Epona
+                auto menu = Ship::Context::GetRawInstance()->GetWindow()->GetGui()->GetMenu();
+                if (menu != nullptr) {
+                    menu->Show();
+                }
+                sState.sfx = REMIX_FS_SFX_DECIDE;
+            } else {
+                Act(REMIX_FS_OPTIONS, 0);
+            }
             break;
     }
 }
@@ -336,6 +347,18 @@ void RemixFileSelect_SetVisible(int visible) {
     sState.visible = visible != 0;
 }
 
+void RemixFileSelect_SetHost(int title) {
+    sState.titleHost = title != 0;
+}
+
+void RemixFileSelect_SetFade(int alpha) {
+    sState.fadeAlpha = std::clamp(alpha, 0, 255);
+}
+
+int RemixFileSelect_PendingAction(void) {
+    return sState.pendingAction;
+}
+
 void RemixFileSelect_SetLogoAlpha(int alpha) {
     sState.logoAlpha = std::clamp(alpha, 0, 255);
 }
@@ -356,6 +379,10 @@ void RemixFileSelect_Reset(void) {
 int RemixFileSelect_Input(int up, int down, int confirm, int back, int erase) {
     sState.sfx = REMIX_FS_SFX_NONE;
     if (!sState.visible || SaveManager::Instance == nullptr || sState.pendingAction != REMIX_FS_NONE) {
+        return REMIX_FS_SFX_NONE;
+    }
+    // The settings menu is open over the title: it has the input, not this menu
+    if (sState.titleHost && Ship::Context::GetRawInstance()->GetWindow()->GetGui()->GetMenuOrMenubarVisible()) {
         return REMIX_FS_SFX_NONE;
     }
 
@@ -476,7 +503,7 @@ int RemixFileSelect_PollAction(int* slot, int* kind) {
 
 // Drawn every rendered frame by the GUI. The window is registered in SohGui.cpp.
 void RemixFileSelect_Draw() {
-    if ((!sState.visible && sState.logoAlpha <= 0) || SaveManager::Instance == nullptr) {
+    if ((!sState.visible && sState.logoAlpha <= 0 && sState.fadeAlpha <= 0) || SaveManager::Instance == nullptr) {
         return;
     }
     auto gui = GetGui();
@@ -494,7 +521,7 @@ void RemixFileSelect_Draw() {
     ImGui::Begin("Remix File Select", nullptr,
                  ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
                      ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoFocusOnAppearing |
-                     ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoScrollbar);
+                     ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs);
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
     ImFont* font = ImGui::GetFont();
@@ -716,6 +743,11 @@ void RemixFileSelect_Draw() {
                           ImVec2(c.x + sz.x * 0.5f + unit * 20.0f, c.y + sz.y * 0.5f + unit * 10.0f),
                           IM_COL32(0, 0, 0, 200), unit * 8.0f);
         DrawCentered(dl, font, unit * 24.0f, c, ImGui::GetColorU32(kText), sState.notice.c_str());
+    }
+
+    if (sState.fadeAlpha > 0) {
+        dl->AddRectFilled(vp->Pos, ImVec2(vp->Pos.x + vp->Size.x, vp->Pos.y + vp->Size.y),
+                          IM_COL32(0, 0, 0, sState.fadeAlpha));
     }
 
     ImGui::End();

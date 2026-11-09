@@ -64,6 +64,11 @@ static s16 sDelayTimer = 0;
 // ImGui) instead of "PRESS START". Moves the stick up and down at the same pace the file select does.
 static s16 sRemixStickTimer = 0;
 static s16 sRemixStickDir = 0;
+// 0 while the menu is open, then 1..255 as black fades in after a choice
+static s16 sRemixTitleFade = 0;
+
+// z_file_choose.c
+void FileChoose_LoadGameFromTitle(GameState* state, s32 slot);
 
 static void EnMag_RemixMenuInput(PlayState* play) {
     Input* input = &play->state.input[0];
@@ -111,6 +116,8 @@ static void EnMag_RemixMenuInput(PlayState* play) {
 }
 
 void EnMag_Init(Actor* thisx, PlayState* play) {
+    sRemixTitleFade = 0;
+    RemixFileSelect_SetFade(0);
     EnMag* this = (EnMag*)thisx;
     bool isMQ = ResourceMgr_IsGameMasterQuest();
 
@@ -243,27 +250,44 @@ void EnMag_Update(Actor* thisx, PlayState* play) {
         } else if (this->globalState >= MAG_STATE_DISPLAY) {
             if (sDelayTimer == 0) {
                 if (this->globalState == MAG_STATE_DISPLAY) {
-                    RemixFileSelect_SetVisible(1);
-                    EnMag_RemixMenuInput(play);
-                }
-                // The choice made in the menu is carried out by the file select, which opens behind black
-                if (RemixFileSelect_HasPending() && this->globalState == MAG_STATE_DISPLAY) {
-                    RemixFileSelect_SetVisible(0);
-
-                    if (play->transitionTrigger != TRANS_TRIGGER_START) {
-                        Audio_SetCutsceneFlag(0);
-
-                        Audio_PlaySfxGeneral(NA_SE_SY_PIECE_OF_HEART, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
-                                             &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
-
-                        gSaveContext.gameMode = GAMEMODE_FILE_SELECT;
-                        play->transitionTrigger = TRANS_TRIGGER_START;
-                        play->transitionType = TRANS_TYPE_FADE_BLACK;
+                    if (sRemixTitleFade == 0) {
+                        RemixFileSelect_SetHost(1);
+                        RemixFileSelect_SetVisible(1);
+                        EnMag_RemixMenuInput(play);
+                        if (RemixFileSelect_PendingAction() != REMIX_FS_NONE) {
+                            sRemixTitleFade = 1;
+                        }
                     }
 
-                    this->copyrightAlphaStep = 15;
-                    this->fadeOutAlphaStep = 25;
-                    this->globalState = MAG_STATE_FADE_OUT;
+                    // A choice was made: black fades in over the title (Link and Epona stay until then)
+                    if (sRemixTitleFade > 0) {
+                        sRemixTitleFade = (sRemixTitleFade + 25 > 255) ? 255 : sRemixTitleFade + 25;
+                        RemixFileSelect_SetFade(sRemixTitleFade);
+
+                        if (sRemixTitleFade >= 255) {
+                            Audio_SetCutsceneFlag(0);
+
+                            if (RemixFileSelect_PendingAction() == REMIX_FS_LOAD) {
+                                // Continue: start the game from here, the file select is not needed
+                                s32 slot = 0;
+
+                                RemixFileSelect_PollAction(&slot, NULL);
+                                RemixFileSelect_SetVisible(0);
+                                func_800F6964(0xF);
+                                FileChoose_LoadGameFromTitle(&play->state, slot);
+                            } else {
+                                // New Game: the file select (name, Randomizer settings) carries the choice out
+                                RemixFileSelect_SetVisible(0);
+                                gSaveContext.gameMode = GAMEMODE_FILE_SELECT;
+                                play->transitionTrigger = TRANS_TRIGGER_START;
+                                play->transitionType = TRANS_TYPE_FADE_BLACK;
+                            }
+
+                            this->copyrightAlphaStep = 15;
+                            this->fadeOutAlphaStep = 25;
+                            this->globalState = MAG_STATE_FADE_OUT;
+                        }
+                    }
                 }
             } else {
                 sDelayTimer--;

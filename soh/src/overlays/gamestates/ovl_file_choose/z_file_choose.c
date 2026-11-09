@@ -2815,38 +2815,34 @@ void FileChoose_FadeOut(GameState* thisx) {
  * Note: On Debug ROM, File 1 will go to Map Select.
  * Update function for `SM_LOAD_GAME`
  */
-void FileChoose_LoadGame(GameState* thisx) {
-    FileChooseContext* this = (FileChooseContext*)thisx;
+// Starts the game from a file. Shared by the file select and by the title screen's Continue, which loads straight
+// from the title so Link and Epona stay on screen until the fade out.
+static void FileChoose_LoadGameSlot(GameState* state, s32 fileSlot, s32 buttonIndex) {
     u16 swordEquipValue;
     s32 pad;
-    // Remix of Harkinian: the Continue list can pick files beyond the three the original menu knows
-    s32 fileSlot = (sRemixLoadSlot >= 0) ? sRemixLoadSlot : this->buttonIndex;
 
-    sRemixLoadSlot = -1;
-    Audio_PlaySfxGeneral(NA_SE_SY_FSEL_DECIDE_L, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
-                         &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
     gSaveContext.fileNum = fileSlot;
     gSaveContext.gameMode = GAMEMODE_NORMAL;
     Randomizer_WaitForGeneration();
 
     if ((fileSlot == FS_BTN_SELECT_FILE_1 && Ship_QuestDebugEnabled(Save_GetSaveMetaInfo(fileSlot)->quest)) ||
-        this->buttonIndex == 0xFF) {
-        if (this->buttonIndex == 0xFF) {
+        buttonIndex == 0xFF) {
+        if (buttonIndex == 0xFF) {
             Sram_InitDebugSave();
         } else {
             Sram_OpenSave();
         }
-        SET_NEXT_GAMESTATE(&this->state, Select_Init, SelectContext);
+        SET_NEXT_GAMESTATE(state, Select_Init, SelectContext);
     } else {
-        if (this->buttonIndex == 0xFE) {
+        if (buttonIndex == 0xFE) {
             Sram_InitBossRushSave();
         } else {
             Sram_OpenSave();
         }
-        SET_NEXT_GAMESTATE(&this->state, Play_Init, PlayState);
+        SET_NEXT_GAMESTATE(state, Play_Init, PlayState);
     }
 
-    this->state.running = false;
+    state->running = false;
 
     gSaveContext.respawn[0].entranceIndex = ENTR_LOAD_OPENING;
     gSaveContext.respawnFlag = 0;
@@ -2894,6 +2890,21 @@ void FileChoose_LoadGame(GameState* thisx) {
     gSaveContext.naviTimer = 0;
 
     GameInteractor_ExecuteOnLoadGame(gSaveContext.fileNum);
+}
+
+void FileChoose_LoadGame(GameState* thisx) {
+    FileChooseContext* this = (FileChooseContext*)thisx;
+    s32 fileSlot = (sRemixLoadSlot >= 0) ? sRemixLoadSlot : this->buttonIndex;
+
+    sRemixLoadSlot = -1;
+    Audio_PlaySfxGeneral(NA_SE_SY_FSEL_DECIDE_L, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
+                         &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
+    FileChoose_LoadGameSlot(&this->state, fileSlot, this->buttonIndex);
+}
+
+// Called by the title screen (En_Mag) when a file is picked in Continue
+void FileChoose_LoadGameFromTitle(GameState* state, s32 slot) {
+    FileChoose_LoadGameSlot(state, slot, (slot <= FS_BTN_MAIN_FILE_3) ? slot : FS_BTN_SELECT_FILE_1);
 }
 
 static void (*gSelectModeUpdateFuncs[])(GameState*) = {
