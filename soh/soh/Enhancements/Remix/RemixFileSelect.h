@@ -12,7 +12,7 @@ extern "C" {
 
 typedef enum {
     REMIX_FS_NONE,
-    REMIX_FS_NEW_GAME, // slot is an empty playthrough slot (0..2)
+    REMIX_FS_NEW_GAME, // slot is an empty playthrough slot (0..2), kind is the QUEST_ of the game to start
     REMIX_FS_LOAD,     // slot is the file to load, any valid slot
     REMIX_FS_OPTIONS,
 } RemixFsAction;
@@ -29,9 +29,13 @@ typedef enum {
 void RemixFileSelect_SetVisible(int visible);
 // Game input for this frame (edge triggered, with stick repeat already applied). Returns the sound to play.
 int RemixFileSelect_Input(int up, int down, int confirm, int back, int erase);
-// The action chosen since the last call, REMIX_FS_NONE if nothing
-int RemixFileSelect_PollAction(int* slot);
-// Back to the first screen, called when the file select starts
+// The action chosen since the last call, REMIX_FS_NONE if nothing. kind is only set for REMIX_FS_NEW_GAME.
+int RemixFileSelect_PollAction(int* slot, int* kind);
+// 1 when an action was chosen and has not been collected yet
+int RemixFileSelect_HasPending(void);
+// Opacity of the logo, 0..255. The title screen fades it in and out.
+void RemixFileSelect_SetLogoAlpha(int alpha);
+// Back to the first screen, called when the file select starts. A chosen action is kept.
 void RemixFileSelect_Reset(void);
 
 #ifdef __cplusplus

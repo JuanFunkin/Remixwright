@@ -16,7 +16,7 @@
 
 namespace {
 
-enum class Screen { Main, List, Confirm, Delete };
+enum class Screen { Main, NewKind, Section, List, Confirm, Delete };
 
 struct Entry {
     int slot;
@@ -35,8 +35,13 @@ struct State {
     bool scrollToCursor = false;
     float noticeTimer = 0.0f;
     std::string notice;
+    int kindIndex = 0;    // New Game: which kind of game
+    int sectionIndex = 0; // Continue: which section
+    int category = 0;     // Continue: section being listed
     int pendingAction = REMIX_FS_NONE;
     int pendingSlot = -1;
+    int pendingKind = -1;
+    int logoAlpha = 0; // 0..255, the title screen fades the logo in
     int sfx = REMIX_FS_SFX_NONE;
 };
 
@@ -128,12 +133,35 @@ const char* KindText(int slot) {
     return "File";
 }
 
-// Every file that can be continued, newest first
-std::vector<Entry> BuildList() {
+// Continue is split in sections. Boss Rush has none: it does not keep saves.
+enum Category { CAT_OOT, CAT_RANDOMIZER, CAT_SPEEDRUN, CAT_COUNT };
+
+const char* kCategoryNames[CAT_COUNT] = { "Ocarina of Time", "Randomizer", "Speedrun" };
+
+int CategoryOf(const SaveFileMetaInfo& meta) {
+    switch (meta.quest) {
+        case QUEST_RANDOMIZER:
+            return CAT_RANDOMIZER;
+        case QUEST_SPEEDRUN:
+        case QUEST_SPEEDRUN_MASTER:
+            return CAT_SPEEDRUN;
+        case QUEST_BOSSRUSH:
+            return -1;
+        default:
+            return CAT_OOT;
+    }
+}
+
+// Files of one section (or of every section with category -1), newest first
+std::vector<Entry> BuildList(int category = -1) {
     std::vector<Entry> list;
     for (int slot = 0; slot < SaveManager::MaxFiles; slot++) {
         const SaveFileMetaInfo& meta = SaveManager::Instance->fileMetaInfo[slot];
         if (!meta.valid) {
+            continue;
+        }
+        const int cat = CategoryOf(meta);
+        if (cat < 0 || (category >= 0 && cat != category)) {
             continue;
         }
         bool ok = true;
@@ -150,6 +178,37 @@ std::vector<Entry> BuildList() {
     return list;
 }
 
+// Sections that have at least one file
+std::vector<int> AvailableCategories() {
+    std::vector<int> cats;
+    for (int c = 0; c < CAT_COUNT; c++) {
+        if (!BuildList(c).empty()) {
+            cats.push_back(c);
+        }
+    }
+    return cats;
+}
+
+struct Kind {
+    const char* label;
+    int quest;
+};
+
+std::vector<Kind> NewGameKinds() {
+    std::vector<Kind> kinds;
+    const bool original = ResourceMgr_GameHasOriginal();
+    if (original) {
+        kinds.push_back({ "Ocarina of Time", QUEST_NORMAL });
+    }
+    if (ResourceMgr_GameHasMasterQuest()) {
+        kinds.push_back({ "Master Quest", QUEST_MASTER });
+    }
+    kinds.push_back({ "Randomizer", QUEST_RANDOMIZER });
+    kinds.push_back({ "Boss Rush", QUEST_BOSSRUSH });
+    kinds.push_back({ "Speedrun", original ? QUEST_SPEEDRUN : QUEST_SPEEDRUN_MASTER });
+    return kinds;
+}
+
 int EmptyNewGameSlot() {
     for (int slot = 0; slot < SaveManager::PlaythroughFiles; slot++) {
         if (!SaveManager::Instance->fileMetaInfo[slot].valid) {
@@ -164,39 +223,71 @@ void SetNotice(const char* text) {
     sState.noticeTimer = 3.0f;
 }
 
-void Act(int action, int slot) {
+void Act(int action, int slot, int kind = -1) {
     sState.pendingAction = action;
     sState.pendingSlot = slot;
+    sState.pendingKind = kind;
+    sState.sfx = REMIX_FS_SFX_DECIDE;
+}
+
+void OpenList(int category) {
+    sState.category = category;
+    sState.screen = Screen::List;
+    sState.listIndex = 0;
+    sState.scrollToCursor = true;
     sState.sfx = REMIX_FS_SFX_DECIDE;
 }
 
 void ActivateMain() {
     switch (sState.mainIndex) {
-        case 0: {
-            int slot = EmptyNewGameSlot();
-            if (slot < 0) {
+        case 0:
+            if (EmptyNewGameSlot() < 0) {
                 SetNotice("The three New Game files are full. Open Continue and press Z on one to delete it.");
                 sState.sfx = REMIX_FS_SFX_ERROR;
             } else {
-                Act(REMIX_FS_NEW_GAME, slot);
-            }
-            break;
-        }
-        case 1:
-            if (BuildList().empty()) {
-                SetNotice("There is no saved game to continue yet.");
-                sState.sfx = REMIX_FS_SFX_ERROR;
-            } else {
-                sState.screen = Screen::List;
-                sState.listIndex = 0;
-                sState.scrollToCursor = true;
+                sState.screen = Screen::NewKind;
+                sState.kindIndex = 0;
                 sState.sfx = REMIX_FS_SFX_DECIDE;
             }
             break;
+        case 1: {
+            auto cats = AvailableCategories();
+            if (cats.empty()) {
+                SetNotice("There is no saved game to continue yet.");
+                sState.sfx = REMIX_FS_SFX_ERROR;
+            } else if (cats.size() == 1) {
+                OpenList(cats[0]);
+            } else {
+                sState.screen = Screen::Section;
+                sState.sectionIndex = 0;
+                sState.sfx = REMIX_FS_SFX_DECIDE;
+            }
+            break;
+        }
         default:
             Act(REMIX_FS_OPTIONS, 0);
             break;
     }
+}
+
+void ActivateNewKind() {
+    auto kinds = NewGameKinds();
+    int slot = EmptyNewGameSlot();
+    if (slot < 0) {
+        SetNotice("The three New Game files are full. Open Continue and press Z on one to delete it.");
+        sState.sfx = REMIX_FS_SFX_ERROR;
+        return;
+    }
+    Act(REMIX_FS_NEW_GAME, slot, kinds[std::clamp(sState.kindIndex, 0, (int)kinds.size() - 1)].quest);
+}
+
+void ActivateSection() {
+    auto cats = AvailableCategories();
+    if (cats.empty()) {
+        sState.screen = Screen::Main;
+        return;
+    }
+    OpenList(cats[std::clamp(sState.sectionIndex, 0, (int)cats.size() - 1)]);
 }
 
 void ActivateList(const std::vector<Entry>& list) {
@@ -245,13 +336,26 @@ void RemixFileSelect_SetVisible(int visible) {
     sState.visible = visible != 0;
 }
 
+void RemixFileSelect_SetLogoAlpha(int alpha) {
+    sState.logoAlpha = std::clamp(alpha, 0, 255);
+}
+
+int RemixFileSelect_HasPending(void) {
+    return sState.pendingAction != REMIX_FS_NONE;
+}
+
+// Back to the first screen. A chosen action is kept: it is made in the title screen and carried out by the file select.
 void RemixFileSelect_Reset(void) {
-    sState = State();
+    State fresh;
+    fresh.pendingAction = sState.pendingAction;
+    fresh.pendingSlot = sState.pendingSlot;
+    fresh.pendingKind = sState.pendingKind;
+    sState = fresh;
 }
 
 int RemixFileSelect_Input(int up, int down, int confirm, int back, int erase) {
     sState.sfx = REMIX_FS_SFX_NONE;
-    if (!sState.visible || SaveManager::Instance == nullptr) {
+    if (!sState.visible || SaveManager::Instance == nullptr || sState.pendingAction != REMIX_FS_NONE) {
         return REMIX_FS_SFX_NONE;
     }
 
@@ -265,8 +369,36 @@ int RemixFileSelect_Input(int up, int down, int confirm, int back, int erase) {
                 ActivateMain();
             }
             break;
+        case Screen::NewKind: {
+            const int count = (int)NewGameKinds().size();
+            if (up) {
+                Move(sState.kindIndex, count, -1);
+            } else if (down) {
+                Move(sState.kindIndex, count, 1);
+            } else if (confirm) {
+                ActivateNewKind();
+            } else if (back) {
+                sState.screen = Screen::Main;
+                sState.sfx = REMIX_FS_SFX_CLOSE;
+            }
+            break;
+        }
+        case Screen::Section: {
+            const int count = (int)AvailableCategories().size();
+            if (up) {
+                Move(sState.sectionIndex, count, -1);
+            } else if (down) {
+                Move(sState.sectionIndex, count, 1);
+            } else if (confirm) {
+                ActivateSection();
+            } else if (back) {
+                sState.screen = Screen::Main;
+                sState.sfx = REMIX_FS_SFX_CLOSE;
+            }
+            break;
+        }
         case Screen::List: {
-            auto list = BuildList();
+            auto list = BuildList(sState.category);
             if (list.empty()) {
                 sState.screen = Screen::Main;
                 break;
@@ -284,7 +416,7 @@ int RemixFileSelect_Input(int up, int down, int confirm, int back, int erase) {
                 sState.screen = Screen::Delete;
                 sState.sfx = REMIX_FS_SFX_DECIDE;
             } else if (back) {
-                sState.screen = Screen::Main;
+                sState.screen = AvailableCategories().size() > 1 ? Screen::Section : Screen::Main;
                 sState.sfx = REMIX_FS_SFX_CLOSE;
             }
             break;
@@ -313,10 +445,12 @@ int RemixFileSelect_Input(int up, int down, int confirm, int back, int erase) {
                 if (sState.deleteIndex == 1) {
                     SaveManager::Instance->DeleteZeldaFile(sState.slotChosen);
                     sState.sfx = REMIX_FS_SFX_DECIDE;
-                } else {
+                }
+                if (sState.deleteIndex == 0) {
                     sState.sfx = REMIX_FS_SFX_CLOSE;
                 }
-                sState.screen = Screen::List;
+                // The section may have run out of files
+                sState.screen = BuildList(sState.category).empty() ? Screen::Main : Screen::List;
             } else if (back) {
                 sState.screen = Screen::List;
                 sState.sfx = REMIX_FS_SFX_CLOSE;
@@ -326,19 +460,23 @@ int RemixFileSelect_Input(int up, int down, int confirm, int back, int erase) {
     return sState.sfx;
 }
 
-int RemixFileSelect_PollAction(int* slot) {
+int RemixFileSelect_PollAction(int* slot, int* kind) {
     int action = sState.pendingAction;
     if (slot != nullptr) {
         *slot = sState.pendingSlot;
     }
+    if (kind != nullptr) {
+        *kind = sState.pendingKind;
+    }
     sState.pendingAction = REMIX_FS_NONE;
     sState.pendingSlot = -1;
+    sState.pendingKind = -1;
     return action;
 }
 
 // Drawn every rendered frame by the GUI. The window is registered in SohGui.cpp.
 void RemixFileSelect_Draw() {
-    if (!sState.visible || SaveManager::Instance == nullptr) {
+    if ((!sState.visible && sState.logoAlpha <= 0) || SaveManager::Instance == nullptr) {
         return;
     }
     auto gui = GetGui();
@@ -368,51 +506,83 @@ void RemixFileSelect_Draw() {
         sState.noticeTimer -= ImGui::GetIO().DeltaTime;
     }
 
-    if (sState.screen == Screen::Main) {
+    if (sState.screen == Screen::Main || sState.screen == Screen::NewKind || sState.screen == Screen::Section) {
         // Logo
         const std::string logoName = "RemixTitleLogo";
         if (!gui->HasTextureByName(logoName)) {
             gui->LoadGuiTexture(logoName, "__OTR__textures/remix/RemixTitleLogo");
         }
         ImTextureID logo = gui->GetTextureByName(logoName);
-        if (logo != nullptr) {
+        if (logo != nullptr && sState.logoAlpha > 0) {
             const float aspect = 1139.0f / 850.0f;
             float h = vp->Size.y * 0.46f;
             float w = h * aspect;
-            ImVec2 p0(vp->Pos.x + vp->Size.x * 0.5f - w * 0.5f, vp->Pos.y + vp->Size.y * 0.08f);
-            dl->AddImage(logo, p0, ImVec2(p0.x + w, p0.y + h));
+            ImVec2 p0(vp->Pos.x + vp->Size.x * 0.5f - w * 0.5f, vp->Pos.y + vp->Size.y * 0.06f);
+            dl->AddImage(logo, p0, ImVec2(p0.x + w, p0.y + h), ImVec2(0, 0), ImVec2(1, 1),
+                         IM_COL32(255, 255, 255, sState.logoAlpha));
         }
 
-        const char* labels[3] = { "New Game", "Continue", "Options" };
-        const bool canContinue = !BuildList().empty();
-        float y = vp->Pos.y + vp->Size.y * 0.66f;
-        const float step = unit * 56.0f;
-        for (int i = 0; i < 3; i++) {
-            const bool selected = sState.mainIndex == i;
-            const bool disabled = (i == 1 && !canContinue);
-            const float size = unit * (selected ? 40.0f : 34.0f);
-            ImVec2 center(vp->Pos.x + vp->Size.x * 0.5f, y + step * i);
-            ImVec2 sz = font->CalcTextSizeA(size, FLT_MAX, 0.0f, labels[i]);
-            ImVec2 a(center.x - unit * 220.0f, center.y - step * 0.5f);
-            ImVec2 b(center.x + unit * 220.0f, center.y + step * 0.5f);
-            if (mouse.x >= a.x && mouse.x <= b.x && mouse.y >= a.y && mouse.y <= b.y) {
-                if (ImGui::GetIO().MouseDelta.x != 0.0f || ImGui::GetIO().MouseDelta.y != 0.0f) {
-                    sState.mainIndex = i;
-                }
-                if (clicked) {
-                    sState.mainIndex = i;
-                    ActivateMain();
-                }
+        std::vector<std::string> labels;
+        std::vector<bool> enabled;
+        int* index = &sState.mainIndex;
+        const char* footer = "A / Start: Select";
+        if (sState.screen == Screen::Main) {
+            labels = { "New Game", "Continue", "Options" };
+            enabled = { true, !AvailableCategories().empty(), true };
+        } else if (sState.screen == Screen::NewKind) {
+            for (const Kind& k : NewGameKinds()) {
+                labels.push_back(k.label);
+                enabled.push_back(true);
             }
-            if (selected) {
-                dl->AddRectFilled(ImVec2(center.x - sz.x * 0.5f - unit * 36.0f, center.y - step * 0.42f),
-                                  ImVec2(center.x + sz.x * 0.5f + unit * 36.0f, center.y + step * 0.42f),
-                                  IM_COL32(0, 0, 0, 120), unit * 8.0f);
+            index = &sState.kindIndex;
+            footer = "A / Start: Select     B: Back";
+        } else {
+            for (int c : AvailableCategories()) {
+                labels.push_back(kCategoryNames[c]);
+                enabled.push_back(true);
             }
-            ImVec4 color = disabled ? kDim : (selected ? kGold : kText);
-            DrawCentered(dl, font, size, center, ImGui::GetColorU32(color), labels[i]);
+            index = &sState.sectionIndex;
+            footer = "A / Start: Select     B: Back";
         }
-        DrawFooter(dl, font, vp->Pos, vp->Size, unit, "A / Start: Select");
+
+        if (sState.visible) {
+            const int count = (int)labels.size();
+            *index = std::clamp(*index, 0, std::max(0, count - 1));
+            const float step = unit * (count > 4 ? 46.0f : 56.0f);
+            float y = vp->Pos.y + vp->Size.y * 0.66f;
+            for (int i = 0; i < count; i++) {
+                const bool selected = *index == i;
+                const bool disabled = !enabled[i];
+                const float size = unit * (selected ? 38.0f : 32.0f);
+                ImVec2 center(vp->Pos.x + vp->Size.x * 0.5f, y + step * i);
+                ImVec2 sz = font->CalcTextSizeA(size, FLT_MAX, 0.0f, labels[i].c_str());
+                ImVec2 a(center.x - unit * 220.0f, center.y - step * 0.5f);
+                ImVec2 b(center.x + unit * 220.0f, center.y + step * 0.5f);
+                if (mouse.x >= a.x && mouse.x <= b.x && mouse.y >= a.y && mouse.y <= b.y) {
+                    if (ImGui::GetIO().MouseDelta.x != 0.0f || ImGui::GetIO().MouseDelta.y != 0.0f) {
+                        *index = i;
+                    }
+                    if (clicked) {
+                        *index = i;
+                        if (sState.screen == Screen::Main) {
+                            ActivateMain();
+                        } else if (sState.screen == Screen::NewKind) {
+                            ActivateNewKind();
+                        } else {
+                            ActivateSection();
+                        }
+                    }
+                }
+                if (selected) {
+                    dl->AddRectFilled(ImVec2(center.x - sz.x * 0.5f - unit * 36.0f, center.y - step * 0.42f),
+                                      ImVec2(center.x + sz.x * 0.5f + unit * 36.0f, center.y + step * 0.42f),
+                                      IM_COL32(0, 0, 0, 120), unit * 8.0f);
+                }
+                ImVec4 color = disabled ? kDim : (selected ? kGold : kText);
+                DrawCentered(dl, font, size, center, ImGui::GetColorU32(color), labels[i].c_str());
+            }
+            DrawFooter(dl, font, vp->Pos, vp->Size, unit, footer);
+        }
     } else {
         // Dim the scene behind the list
         dl->AddRectFilled(vp->Pos, ImVec2(vp->Pos.x + vp->Size.x, vp->Pos.y + vp->Size.y), IM_COL32(8, 12, 24, 190));
@@ -420,9 +590,9 @@ void RemixFileSelect_Draw() {
         const float panelW = std::min(vp->Size.x * 0.86f, unit * 1000.0f);
         const float panelX = vp->Pos.x + (vp->Size.x - panelW) * 0.5f;
         DrawCentered(dl, font, unit * 40.0f, ImVec2(vp->Pos.x + vp->Size.x * 0.5f, vp->Pos.y + unit * 58.0f),
-                     ImGui::GetColorU32(kGold), "Continue");
+                     ImGui::GetColorU32(kGold), kCategoryNames[std::clamp(sState.category, 0, (int)CAT_COUNT - 1)]);
 
-        auto list = BuildList();
+        auto list = BuildList(sState.category);
         const float rowH = unit * 78.0f;
         const float listTop = vp->Pos.y + unit * 110.0f;
         const float listBottom = vp->Pos.y + vp->Size.y - unit * 80.0f;
@@ -522,7 +692,7 @@ void RemixFileSelect_Draw() {
                         if (i == 1) {
                             SaveManager::Instance->DeleteZeldaFile(sState.slotChosen);
                         }
-                        sState.screen = Screen::List;
+                        sState.screen = BuildList(sState.category).empty() ? Screen::Main : Screen::List;
                     } else if (i == 0) {
                         Act(REMIX_FS_LOAD, sState.slotChosen);
                     } else {

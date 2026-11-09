@@ -163,6 +163,10 @@ static s32 sRemixLoadSlot = -1;
 static s32 sRemixPendingNewSlot = -1;
 // Makes FileChoose_UpdateMainMenu act as if A was pressed on the selected button this frame
 static u8 sRemixForceConfirm = 0;
+// Kind of game picked in New Game (a QUEST_ id), applied when the original quest menu opens. -1 when none.
+static s32 sRemixPendingQuest = -1;
+// Black cover over the file select while the title screen's choice is carried out, so the original menu never shows
+static s16 sRemixCover = 0;
 
 static void FileChoose_RemixPlaySfx(s32 sfx) {
     u16 id;
@@ -206,6 +210,7 @@ static void FileChoose_RemixBeginLoad(FileChooseContext* this, s32 slot) {
 static void FileChoose_RemixMenuFrame(FileChooseContext* this) {
     Input* input = &this->state.input[0];
     s32 slot = 0;
+    s32 kind = -1;
     s32 action;
 
     // A file made by New Game is finished: go on and play it.
@@ -232,9 +237,10 @@ static void FileChoose_RemixMenuFrame(FileChooseContext* this) {
     this->warningLabel = FS_WARNING_NONE;
     this->buttonIndex = FS_BTN_MAIN_OPTIONS;
 
-    action = RemixFileSelect_PollAction(&slot);
+    action = RemixFileSelect_PollAction(&slot, &kind);
     switch (action) {
         case REMIX_FS_NEW_GAME:
+            sRemixPendingQuest = kind;
             this->buttonIndex = slot;
             sRemixPendingNewSlot = slot;
             sRemixForceConfirm = 1;
@@ -909,7 +915,15 @@ void FileChoose_UpdateQuestMenu(GameState* thisx) {
         GameInteractor_ExecuteOnUpdateFileQuestSelection(this->questType[this->buttonIndex]);
     }
 
-    if (CHECK_BTN_ALL(input->press.button, BTN_A)) {
+    // Remix of Harkinian: the kind of game was already picked in the title screen's New Game menu
+    if (sRemixPendingQuest >= 0) {
+        this->questType[this->buttonIndex] = sRemixPendingQuest;
+        sRemixPendingQuest = -1;
+        sRemixForceConfirm = 1;
+    }
+
+    if (sRemixForceConfirm || CHECK_BTN_ALL(input->press.button, BTN_A)) {
+        sRemixForceConfirm = 0;
         gSaveContext.ship.quest.id = this->questType[this->buttonIndex];
 
         if (this->questType[this->buttonIndex] == QUEST_BOSSRUSH) {
@@ -3026,6 +3040,7 @@ void FileChoose_Main(GameState* thisx) {
 
     Color_RGB8 helpTextColor = { 100, 255, 255 };
     s32 remixMenu;
+    s32 remixPending;
     s32 remixHide;
     s32 saved[24];
 
@@ -3177,9 +3192,18 @@ void FileChoose_Main(GameState* thisx) {
 
     // Remix of Harkinian: the main menu and the Continue list belong to RemixFileSelect
     remixMenu = (this->menuMode == FS_MENU_MODE_CONFIG) && (this->configMode == CM_MAIN_MENU) && (sRemixLoadSlot < 0);
-    RemixFileSelect_SetVisible(remixMenu);
+    remixPending = RemixFileSelect_HasPending();
+    RemixFileSelect_SetVisible(remixMenu && !remixPending);
+    RemixFileSelect_SetLogoAlpha((remixMenu && !remixPending) ? 255 : 0);
     if (remixMenu) {
         FileChoose_RemixMenuFrame(this);
+    }
+
+    // A choice made in the title screen is carried out behind black
+    if (remixPending || (sRemixLoadSlot >= 0)) {
+        sRemixCover = 255;
+    } else if (sRemixCover > 0) {
+        sRemixCover = (sRemixCover > 25) ? sRemixCover - 25 : 0;
     }
 
     FileChoose_PulsateCursor(&this->state);
@@ -3187,7 +3211,7 @@ void FileChoose_Main(GameState* thisx) {
 
     // Hide the original menu while the Remix one is shown (and during the fade out into a game), putting the values
     // back after drawing so the original animations are not disturbed.
-    remixHide = remixMenu || (sRemixLoadSlot >= 0);
+    remixHide = remixMenu || (sRemixLoadSlot >= 0) || remixPending;
     if (remixHide) {
         saved[0] = this->windowAlpha;
         saved[1] = this->titleAlpha[0];
@@ -3275,7 +3299,7 @@ void FileChoose_Main(GameState* thisx) {
 
     gDPPipeSync(POLY_OPA_DISP++);
     gSPDisplayList(POLY_OPA_DISP++, sScreenFillSetupDL);
-    gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, 0, 0, 0, sScreenFillAlpha);
+    gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, 0, 0, 0, ((sScreenFillAlpha > sRemixCover) ? sScreenFillAlpha : sRemixCover));
     gDPFillRectangle(POLY_OPA_DISP++, 0, 0, gScreenWidth - 1, gScreenHeight - 1);
 
     CLOSE_DISPS(this->state.gfxCtx);
@@ -3493,6 +3517,8 @@ void FileChoose_Init(GameState* thisx) {
     sRemixLoadSlot = -1;
     sRemixPendingNewSlot = -1;
     sRemixForceConfirm = 0;
+    sRemixPendingQuest = -1;
+    sRemixCover = RemixFileSelect_HasPending() ? 255 : 0;
     RemixFileSelect_Reset();
     this->questType[0] = MIN_QUEST;
     this->questType[1] = MIN_QUEST;

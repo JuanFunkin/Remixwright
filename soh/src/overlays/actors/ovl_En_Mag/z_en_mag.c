@@ -8,6 +8,7 @@
 #include "objects/object_mag/object_mag.h"
 #include <soh/GameVersions.h>
 #include "soh/ResourceManagerHelpers.h"
+#include "soh/Enhancements/Remix/RemixFileSelect.h"
 #include <string.h>
 
 #define FLAGS (ACTOR_FLAG_UPDATE_CULLING_DISABLED | ACTOR_FLAG_DRAW_CULLING_DISABLED)
@@ -58,6 +59,56 @@ FontType sFontType;
 // #endregion
 
 static s16 sDelayTimer = 0;
+
+// Remix of Harkinian: the title screen shows the New Game / Continue / Options menu (RemixFileSelect, drawn with
+// ImGui) instead of "PRESS START". Moves the stick up and down at the same pace the file select does.
+static s16 sRemixStickTimer = 0;
+static s16 sRemixStickDir = 0;
+
+static void EnMag_RemixMenuInput(PlayState* play) {
+    Input* input = &play->state.input[0];
+    s32 up = CHECK_BTN_ALL(input->press.button, BTN_DUP);
+    s32 down = CHECK_BTN_ALL(input->press.button, BTN_DDOWN);
+    s16 dir = (input->cur.stick_y > 30) ? 1 : ((input->cur.stick_y < -30) ? -1 : 0);
+
+    if (dir == 0) {
+        sRemixStickTimer = 0;
+        sRemixStickDir = 0;
+    } else if (dir != sRemixStickDir) {
+        sRemixStickDir = dir;
+        sRemixStickTimer = 10; // wait a little before it starts repeating
+        up |= (dir > 0);
+        down |= (dir < 0);
+    } else if (--sRemixStickTimer <= 0) {
+        sRemixStickTimer = 3;
+        up |= (dir > 0);
+        down |= (dir < 0);
+    }
+
+    switch (RemixFileSelect_Input(up, down,
+                                  CHECK_BTN_ALL(input->press.button, BTN_A) ||
+                                      CHECK_BTN_ALL(input->press.button, BTN_START),
+                                  CHECK_BTN_ALL(input->press.button, BTN_B), CHECK_BTN_ALL(input->press.button, BTN_Z))) {
+        case REMIX_FS_SFX_CURSOR:
+            Audio_PlaySfxGeneral(NA_SE_SY_FSEL_CURSOR, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
+                                 &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
+            break;
+        case REMIX_FS_SFX_DECIDE:
+            Audio_PlaySfxGeneral(NA_SE_SY_FSEL_DECIDE_L, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
+                                 &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
+            break;
+        case REMIX_FS_SFX_CLOSE:
+            Audio_PlaySfxGeneral(NA_SE_SY_FSEL_CLOSE, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
+                                 &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
+            break;
+        case REMIX_FS_SFX_ERROR:
+            Audio_PlaySfxGeneral(NA_SE_SY_FSEL_ERROR, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
+                                 &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
+            break;
+        default:
+            break;
+    }
+}
 
 void EnMag_Init(Actor* thisx, PlayState* play) {
     EnMag* this = (EnMag*)thisx;
@@ -191,9 +242,13 @@ void EnMag_Update(Actor* thisx, PlayState* play) {
             }
         } else if (this->globalState >= MAG_STATE_DISPLAY) {
             if (sDelayTimer == 0) {
-                if (CHECK_BTN_ALL(play->state.input[0].press.button, BTN_START) ||
-                    CHECK_BTN_ALL(play->state.input[0].press.button, BTN_A) ||
-                    CHECK_BTN_ALL(play->state.input[0].press.button, BTN_B)) {
+                if (this->globalState == MAG_STATE_DISPLAY) {
+                    RemixFileSelect_SetVisible(1);
+                    EnMag_RemixMenuInput(play);
+                }
+                // The choice made in the menu is carried out by the file select, which opens behind black
+                if (RemixFileSelect_HasPending() && this->globalState == MAG_STATE_DISPLAY) {
+                    RemixFileSelect_SetVisible(0);
 
                     if (play->transitionTrigger != TRANS_TRIGGER_START) {
                         Audio_SetCutsceneFlag(0);
@@ -322,8 +377,17 @@ void EnMag_Update(Actor* thisx, PlayState* play) {
             this->globalState = MAG_STATE_FADE_IN;
         }
     } else if (this->globalState == MAG_STATE_DISPLAY) {
-        if (Flags_GetEnv(play, 4)) {
+        // Remix of Harkinian: the menu stays up as long as the player wants, the logo does not fade by itself
+        if (gSaveContext.fileNum == 0xFEDC && Flags_GetEnv(play, 4)) {
             this->globalState = MAG_STATE_FADE_OUT;
+        }
+    }
+
+    // The logo is drawn by RemixFileSelect with the same fade the original one had
+    if (gSaveContext.fileNum != 0xFEDC) {
+        RemixFileSelect_SetLogoAlpha((s32)(this->mainAlpha * 255.0f / 210.0f));
+        if (this->globalState != MAG_STATE_DISPLAY) {
+            RemixFileSelect_SetVisible(0);
         }
     }
 }
@@ -528,6 +592,12 @@ void EnMag_DrawInner(Actor* thisx, PlayState* play, Gfx** gfxP) {
     bool isJpnGC_CE = isGC && ResourceMgr_GetGameVersion(0) == OOT_NTSC_JP_GC_CE;
     bool isJpnGC_notCE =
         isGC && (ResourceMgr_GetGameVersion(0) == OOT_NTSC_JP_GC || ResourceMgr_GetGameVersion(0) == OOT_NTSC_JP_MQ);
+
+    // Remix of Harkinian: the logo, "PRESS START" and the copyright are replaced by RemixFileSelect (ImGui). Only the
+    // "no controller" message keeps the original drawing.
+    if (gSaveContext.fileNum != 0xFEDC) {
+        return;
+    }
 
     gSPSegment(gfx++, 0x06, play->objectCtx.status[this->actor.objBankIndex].segment);
 
