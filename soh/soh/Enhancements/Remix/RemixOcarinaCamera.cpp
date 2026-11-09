@@ -19,6 +19,9 @@ static bool sActive = false;
 static f32 sSavedX = 0.0f;
 static f32 sSavedY = 0.0f;
 static s16 sScene = -1;
+// Free look is a "manual camera": once the right stick moves, the camera leaves the game's own follow camera until
+// something resets it. camX/camY only mean something while it is manual.
+static bool sWasManual = false;
 
 extern "C" int RemixOcarinaCamera_Begin(PlayState* play, Player* player) {
     if (!CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 1) ||
@@ -31,6 +34,7 @@ extern "C" int RemixOcarinaCamera_Begin(PlayState* play, Player* player) {
         return 0;
     }
 
+    sWasManual = play->manualCamera;
     sSavedX = play->camX;
     sSavedY = play->camY;
     sScene = play->sceneNum;
@@ -54,6 +58,13 @@ static void OnFrameUpdate() {
 
     Input* input = &gPlayState->state.input[0];
     if (std::abs(input->cur.right_stick_x) > 20 || std::abs(input->cur.right_stick_y) > 20) {
+        sActive = false;
+        return;
+    }
+
+    // The camera was following Link on its own: hand it back to the game, which eases it to where it belongs
+    if (!sWasManual) {
+        gPlayState->manualCamera = false;
         sActive = false;
         return;
     }
