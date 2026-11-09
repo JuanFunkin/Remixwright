@@ -774,6 +774,21 @@ void Camera_UpdateInterface(s16 flags) {
                 break;
         }
 
+        // Remix: no black bars while aiming or Z-targeting during normal gameplay (as in the remake).
+        if ((sCameraShrinkWindowVal != 0) && (gPlayState != NULL) && (gPlayState->csCtx.state == CS_STATE_IDLE)) {
+            Player* remixPlayer = GET_PLAYER(gPlayState);
+
+            if ((remixPlayer != NULL) &&
+                (remixPlayer->stateFlags1 &
+                 (PLAYER_STATE1_HOSTILE_LOCK_ON | PLAYER_STATE1_PARALLEL | PLAYER_STATE1_FIRST_PERSON |
+                  PLAYER_STATE1_READY_TO_FIRE | PLAYER_STATE1_USING_BOOMERANG)) &&
+                !(remixPlayer->stateFlags1 & (PLAYER_STATE1_TALKING | PLAYER_STATE1_IN_CUTSCENE |
+                                              PLAYER_STATE1_IN_ITEM_CS | PLAYER_STATE1_GETTING_ITEM |
+                                              PLAYER_STATE1_DEAD))) {
+                sCameraShrinkWindowVal = 0;
+            }
+        }
+
         if (flags & SHRINKWIN_CURVAL) {
             ShrinkWindow_SetCurrentVal(sCameraShrinkWindowVal);
         } else {
