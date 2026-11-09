@@ -69,6 +69,8 @@ static s16 sRemixTitleFade = 0;
 
 // z_file_choose.c
 void FileChoose_LoadGameFromTitle(GameState* state, s32 slot);
+void FileChoose_LoadBossRushFromTitle(GameState* state);
+void FileChoose_StartNewGameFromTitle(GameState* state, s32 slot, s32 quest, const char* name, s32 speedrunIndex);
 
 static void EnMag_RemixMenuInput(PlayState* play) {
     Input* input = &play->state.input[0];
@@ -90,8 +92,30 @@ static void EnMag_RemixMenuInput(PlayState* play) {
         down |= (dir < 0);
     }
 
-    switch (RemixFileSelect_Input(up, down, CHECK_BTN_ALL(input->press.button, BTN_DLEFT),
-                                  CHECK_BTN_ALL(input->press.button, BTN_DRIGHT),
+    // Left and right, the same way: the keyboard on the name entry and the Boss Rush options need them
+    s32 left = CHECK_BTN_ALL(input->press.button, BTN_DLEFT);
+    s32 right = CHECK_BTN_ALL(input->press.button, BTN_DRIGHT);
+    {
+        static s16 sRemixStickTimerX = 0;
+        static s16 sRemixStickDirX = 0;
+        s16 dirX = (input->cur.stick_x > 30) ? 1 : ((input->cur.stick_x < -30) ? -1 : 0);
+
+        if (dirX == 0) {
+            sRemixStickTimerX = 0;
+            sRemixStickDirX = 0;
+        } else if (dirX != sRemixStickDirX) {
+            sRemixStickDirX = dirX;
+            sRemixStickTimerX = 12;
+            right |= (dirX > 0);
+            left |= (dirX < 0);
+        } else if (--sRemixStickTimerX <= 0) {
+            sRemixStickTimerX = 4;
+            right |= (dirX > 0);
+            left |= (dirX < 0);
+        }
+    }
+
+    switch (RemixFileSelect_Input(up, down, left, right,
                                   CHECK_BTN_ALL(input->press.button, BTN_A) ||
                                       CHECK_BTN_ALL(input->press.button, BTN_START),
                                   CHECK_BTN_ALL(input->press.button, BTN_B), CHECK_BTN_ALL(input->press.button, BTN_Z))) {
@@ -276,6 +300,23 @@ void EnMag_Update(Actor* thisx, PlayState* play) {
                                 RemixFileSelect_SetVisible(0);
                                 func_800F6964(0xF);
                                 FileChoose_LoadGameFromTitle(&play->state, slot);
+                            } else if (RemixFileSelect_PendingAction() == REMIX_FS_START_NEW) {
+                                // New Game: name, Randomizer and the rest were chosen over the title
+                                s32 slot = 0;
+                                s32 quest = 0;
+                                s32 speedrunIndex = 0;
+                                char name[9];
+
+                                RemixFileSelect_PollAction(&slot, &quest);
+                                RemixFileSelect_GetNewGame(name, &speedrunIndex);
+                                RemixFileSelect_SetVisible(0);
+                                func_800F6964(0xF);
+                                FileChoose_StartNewGameFromTitle(&play->state, slot, quest, name, speedrunIndex);
+                            } else if (RemixFileSelect_PendingAction() == REMIX_FS_START_BOSSRUSH) {
+                                RemixFileSelect_PollAction(NULL, NULL);
+                                RemixFileSelect_SetVisible(0);
+                                func_800F6964(0xF);
+                                FileChoose_LoadBossRushFromTitle(&play->state);
                             } else {
                                 // New Game: the file select (name, Randomizer settings) carries the choice out
                                 RemixFileSelect_SetVisible(0);
