@@ -1,6 +1,8 @@
 #include "RemixFileSelect.h"
 
 #include <algorithm>
+#include <cstdio>
+#include <cstring>
 #include <ctime>
 #include <string>
 #include <vector>
@@ -11,12 +13,23 @@
 #include <ship/window/gui/GuiWindow.h>
 
 #include "soh/SaveManager.h"
+#include "soh/OTRGlobals.h"
+#include "soh/Enhancements/FileSelectEnhancements.h"
+#include "soh/Enhancements/boss-rush/BossRush.h"
 #include "soh/ResourceManagerHelpers.h"
 #include "soh/util.h"
 
+extern "C" {
+void FileChoose_UpdateRandomizerSpoilerFile(void);
+void Speedrun_ReloadPresetChoices();
+int Speedrun_GetPresetCount();
+const char* Speedrun_GetPresetName(int index);
+extern SaveContext gSaveContext;
+}
+
 namespace {
 
-enum class Screen { Main, NewKind, Section, List, Confirm, Delete };
+enum class Screen { Main, NewKind, Section, List, Confirm, Delete, Name, Rando, Speedrun, BossRush };
 
 struct Entry {
     int slot;
@@ -45,6 +58,17 @@ struct State {
     int fadeAlpha = 0; // 0..255 black over everything, the title screen fades out with it
     bool titleHost = false; // the menu is on the title screen, not on the file select
     int sfx = REMIX_FS_SFX_NONE;
+    // New Game set up over the title
+    int newQuest = -1;
+    int newSlot = -1;
+    std::string name = "Link";
+    int nameRow = 0;
+    int nameCol = 0;
+    Screen nameBack = Screen::NewKind;
+    int setupIndex = 0;  // row in the Randomizer / Boss Rush screens
+    int presetIndex = 0; // Speedrun preset
+    int pendingSpeedrun = 0;
+    std::string pendingName;
 };
 
 State sState;
@@ -280,6 +304,47 @@ void ActivateMain() {
     }
 }
 
+// Name keyboard: 5 rows of 13 cells
+constexpr int kNameRows = 5;
+constexpr int kNameCols = 13;
+const char* kNameGrid[kNameRows] = { "ABCDEFGHIJKLM", "NOPQRSTUVWXYZ", "abcdefghijklm", "nopqrstuvwxyz", "0123456789" };
+// Row 4, columns 10..12 are Space, Delete and OK
+
+bool IsSetupScreen() {
+    return sState.screen == Screen::Name || sState.screen == Screen::Rando || sState.screen == Screen::Speedrun ||
+           sState.screen == Screen::BossRush;
+}
+
+void GoName(Screen back) {
+    sState.screen = Screen::Name;
+    sState.nameBack = back;
+    sState.nameRow = 0;
+    sState.nameCol = 0;
+    sState.sfx = REMIX_FS_SFX_DECIDE;
+}
+
+bool RandoReady() {
+    return Randomizer_IsSeedGenerated() || Randomizer_IsSpoilerLoaded();
+}
+
+void BeginSetup(int quest) {
+    sState.setupIndex = 0;
+    if (quest == QUEST_BOSSRUSH) {
+        sState.screen = Screen::BossRush;
+        sState.sfx = REMIX_FS_SFX_DECIDE;
+    } else if (quest == QUEST_RANDOMIZER) {
+        sState.screen = Screen::Rando;
+        sState.sfx = REMIX_FS_SFX_DECIDE;
+    } else if (quest == QUEST_SPEEDRUN || quest == QUEST_SPEEDRUN_MASTER) {
+        Speedrun_ReloadPresetChoices();
+        sState.presetIndex = 0;
+        sState.screen = Screen::Speedrun;
+        sState.sfx = REMIX_FS_SFX_DECIDE;
+    } else {
+        GoName(Screen::NewKind);
+    }
+}
+
 void ActivateNewKind() {
     auto kinds = NewGameKinds();
     int slot = EmptyNewGameSlot();
@@ -288,7 +353,94 @@ void ActivateNewKind() {
         sState.sfx = REMIX_FS_SFX_ERROR;
         return;
     }
-    Act(REMIX_FS_NEW_GAME, slot, kinds[std::clamp(sState.kindIndex, 0, (int)kinds.size() - 1)].quest);
+    sState.newSlot = slot;
+    sState.newQuest = kinds[std::clamp(sState.kindIndex, 0, (int)kinds.size() - 1)].quest;
+    // Boss Rush needs no name, and its file is not a normal one
+    BeginSetup(sState.newQuest);
+}
+
+void FinishName() {
+    std::string name = sState.name;
+    while (!name.empty() && name.back() == ' ') {
+        name.pop_back();
+    }
+    if (name.empty()) {
+        SetNotice("Type a name first.");
+        sState.sfx = REMIX_FS_SFX_ERROR;
+        return;
+    }
+    sState.pendingName = name;
+    sState.pendingSpeedrun = sState.presetIndex;
+    Act(REMIX_FS_START_NEW, sState.newSlot, sState.newQuest);
+}
+
+void ActivateNameCell() {
+    if (sState.nameRow == 4 && sState.nameCol >= 10) {
+        if (sState.nameCol == 10) {
+            if (sState.name.size() < 8) {
+                sState.name.push_back(' ');
+                sState.sfx = REMIX_FS_SFX_CURSOR;
+            }
+        } else if (sState.nameCol == 11) {
+            if (!sState.name.empty()) {
+                sState.name.pop_back();
+                sState.sfx = REMIX_FS_SFX_CURSOR;
+            }
+        } else {
+            FinishName();
+        }
+        return;
+    }
+    if (sState.nameRow == 4 && sState.nameCol >= 10) {
+        return;
+    }
+    const int rowLen = (int)std::strlen(kNameGrid[sState.nameRow]);
+    if (sState.nameCol < rowLen && sState.name.size() < 8) {
+        sState.name.push_back(kNameGrid[sState.nameRow][sState.nameCol]);
+        sState.sfx = REMIX_FS_SFX_CURSOR;
+    } else {
+        sState.sfx = REMIX_FS_SFX_ERROR;
+    }
+}
+
+void ActivateRando() {
+    if (Randomizer_IsGenerating()) {
+        return;
+    }
+    switch (sState.setupIndex) {
+        case 0:
+            if (RandoReady()) {
+                SohFileSelect_ShowPresetModal();
+                GoName(Screen::Rando);
+            } else {
+                SetNotice("Generate a seed first.");
+                sState.sfx = REMIX_FS_SFX_ERROR;
+            }
+            break;
+        case 1:
+            Randomizer_GenerateRandomizer();
+            sState.sfx = REMIX_FS_SFX_DECIDE;
+            break;
+        default:
+            Randomizer_ShowRandomizerMenu();
+            sState.sfx = REMIX_FS_SFX_DECIDE;
+            break;
+    }
+}
+
+void ActivateBossRush() {
+    Act(REMIX_FS_START_BOSSRUSH, 0, QUEST_BOSSRUSH);
+}
+
+void ChangeBossRushOption(int row, int delta) {
+    const int amount = BossRush_GetSettingOptionsAmount((u8)row);
+    if (amount <= 0) {
+        return;
+    }
+    int value = gSaveContext.ship.quest.data.bossRush.options[row];
+    value = (value + delta + amount) % amount;
+    gSaveContext.ship.quest.data.bossRush.options[row] = (u8)value;
+    sState.sfx = REMIX_FS_SFX_CURSOR;
 }
 
 void ActivateSection() {
@@ -337,6 +489,185 @@ void DrawFooter(ImDrawList* dl, ImFont* font, ImVec2 vpPos, ImVec2 vpSize, float
                 ImGui::GetColorU32(kDim), text);
 }
 
+// Text over the scene with a dark edge, since these screens have no background so Link and Epona stay visible
+void DrawShadowText(ImDrawList* dl, ImFont* font, float size, ImVec2 center, ImU32 color, const char* text,
+                    float unit) {
+    DrawCentered(dl, font, size, ImVec2(center.x + unit * 2.0f, center.y + unit * 2.0f), IM_COL32(0, 0, 0, 230), text);
+    DrawCentered(dl, font, size, ImVec2(center.x - unit * 1.0f, center.y), IM_COL32(0, 0, 0, 160), text);
+    DrawCentered(dl, font, size, center, color, text);
+}
+
+bool Hovered(ImVec2 mouse, ImVec2 a, ImVec2 b) {
+    return mouse.x >= a.x && mouse.x <= b.x && mouse.y >= a.y && mouse.y <= b.y;
+}
+
+void DrawSetup(ImDrawList* dl, ImFont* font, ImGuiViewport* vp, float unit, ImVec2 mouse, bool clicked) {
+    const float cx = vp->Pos.x + vp->Size.x * 0.5f;
+    const bool moved = ImGui::GetIO().MouseDelta.x != 0.0f || ImGui::GetIO().MouseDelta.y != 0.0f;
+    const ImU32 gold = ImGui::GetColorU32(kGold);
+    const ImU32 text = ImGui::GetColorU32(kText);
+    const ImU32 dim = ImGui::GetColorU32(kDim);
+    const char* footer = "A / Start: Select     B: Back";
+    const char* title = "";
+
+    if (sState.screen == Screen::Name) {
+        title = "Enter your name";
+        DrawShadowText(dl, font, unit * 46.0f, ImVec2(cx, vp->Pos.y + vp->Size.y * 0.13f), gold, title, unit);
+
+        // The name, eight slots
+        const float slotW = unit * 52.0f;
+        const float nameY = vp->Pos.y + vp->Size.y * 0.26f;
+        for (int i = 0; i < 8; i++) {
+            float x = cx - slotW * 4.0f + slotW * (i + 0.5f);
+            dl->AddLine(ImVec2(x - slotW * 0.4f, nameY + unit * 26.0f), ImVec2(x + slotW * 0.4f, nameY + unit * 26.0f),
+                        dim, unit * 2.0f);
+            if (i < (int)sState.name.size()) {
+                char buf[2] = { sState.name[i], 0 };
+                DrawShadowText(dl, font, unit * 44.0f, ImVec2(x, nameY), text, buf, unit);
+            }
+        }
+
+        // Keyboard
+        const float cell = unit * 52.0f;
+        const float top = vp->Pos.y + vp->Size.y * 0.38f;
+        const float left = cx - cell * kNameCols * 0.5f;
+        for (int r = 0; r < kNameRows; r++) {
+            for (int c = 0; c < kNameCols; c++) {
+                std::string label;
+                if (r == 4 && c >= 10) {
+                    label = (c == 10) ? "Space" : (c == 11 ? "Del" : "OK");
+                } else if (c < (int)std::strlen(kNameGrid[r])) {
+                    label = std::string(1, kNameGrid[r][c]);
+                } else {
+                    continue;
+                }
+                ImVec2 centre(left + cell * (c + 0.5f), top + cell * (r + 0.5f));
+                ImVec2 a(centre.x - cell * 0.5f, centre.y - cell * 0.5f);
+                ImVec2 b(centre.x + cell * 0.5f, centre.y + cell * 0.5f);
+                if (Hovered(mouse, a, b)) {
+                    if (moved) {
+                        sState.nameRow = r;
+                        sState.nameCol = c;
+                    }
+                    if (clicked) {
+                        sState.nameRow = r;
+                        sState.nameCol = c;
+                        ActivateNameCell();
+                    }
+                }
+                const bool selected = sState.nameRow == r && sState.nameCol == c;
+                if (selected) {
+                    dl->AddRectFilled(a, b, IM_COL32(0, 0, 0, 140), unit * 8.0f);
+                }
+                const float size = unit * (label.size() > 1 ? 22.0f : (selected ? 34.0f : 30.0f));
+                DrawShadowText(dl, font, size, centre, selected ? gold : text, label.c_str(), unit);
+            }
+        }
+        footer = "A / Start: Type     B: Delete / Back     Z: Delete     Choose OK when you are done";
+    } else if (sState.screen == Screen::Rando) {
+        title = "Randomizer";
+        DrawShadowText(dl, font, unit * 46.0f, ImVec2(cx, vp->Pos.y + vp->Size.y * 0.13f), gold, title, unit);
+
+        const bool generating = Randomizer_IsGenerating();
+        const bool ready = RandoReady();
+        const char* status = generating ? "Generating the seed..." : (ready ? "A seed is ready" : "No seed generated yet");
+        DrawShadowText(dl, font, unit * 26.0f, ImVec2(cx, vp->Pos.y + vp->Size.y * 0.27f),
+                       ready ? ImGui::GetColorU32(ImVec4(0.55f, 0.95f, 0.55f, 1.0f)) : dim, status, unit);
+
+        const char* labels[3] = { "Start Game", "Generate Seed", "Randomizer Settings" };
+        const bool enabled[3] = { ready && !generating, !generating, !generating };
+        const float step = unit * 62.0f;
+        for (int i = 0; i < 3; i++) {
+            const bool selected = sState.setupIndex == i;
+            ImVec2 centre(cx, vp->Pos.y + vp->Size.y * 0.42f + step * i);
+            ImVec2 a(centre.x - unit * 240.0f, centre.y - step * 0.5f);
+            ImVec2 b(centre.x + unit * 240.0f, centre.y + step * 0.5f);
+            if (Hovered(mouse, a, b)) {
+                if (moved) {
+                    sState.setupIndex = i;
+                }
+                if (clicked) {
+                    sState.setupIndex = i;
+                    ActivateRando();
+                }
+            }
+            if (selected) {
+                dl->AddRectFilled(a, b, IM_COL32(0, 0, 0, 120), unit * 8.0f);
+            }
+            DrawShadowText(dl, font, unit * (selected ? 38.0f : 32.0f), centre,
+                           !enabled[i] ? dim : (selected ? gold : text), labels[i], unit);
+        }
+    } else if (sState.screen == Screen::Speedrun) {
+        title = "Speedrun";
+        DrawShadowText(dl, font, unit * 46.0f, ImVec2(cx, vp->Pos.y + vp->Size.y * 0.13f), gold, title, unit);
+        DrawShadowText(dl, font, unit * 24.0f, ImVec2(cx, vp->Pos.y + vp->Size.y * 0.24f), dim, "Preset", unit);
+
+        const int count = std::max(1, Speedrun_GetPresetCount());
+        sState.presetIndex = std::clamp(sState.presetIndex, 0, count - 1);
+        const int rows = 7;
+        int first = std::clamp(sState.presetIndex - rows / 2, 0, std::max(0, count - rows));
+        const float step = unit * 56.0f;
+        for (int i = 0; i < rows && first + i < count; i++) {
+            const int idx = first + i;
+            const bool selected = sState.presetIndex == idx;
+            const char* nameC = Speedrun_GetPresetName(idx);
+            std::string label = (nameC != nullptr && nameC[0] != '\0') ? nameC : "No preset (keep my settings)";
+            ImVec2 centre(cx, vp->Pos.y + vp->Size.y * 0.33f + step * i);
+            ImVec2 a(centre.x - unit * 360.0f, centre.y - step * 0.5f);
+            ImVec2 b(centre.x + unit * 360.0f, centre.y + step * 0.5f);
+            if (Hovered(mouse, a, b)) {
+                if (moved) {
+                    sState.presetIndex = idx;
+                }
+                if (clicked) {
+                    sState.presetIndex = idx;
+                    GoName(Screen::Speedrun);
+                }
+            }
+            if (selected) {
+                dl->AddRectFilled(a, b, IM_COL32(0, 0, 0, 120), unit * 8.0f);
+            }
+            DrawShadowText(dl, font, unit * (selected ? 32.0f : 28.0f), centre, selected ? gold : text, label.c_str(),
+                           unit);
+        }
+    } else {
+        title = "Boss Rush";
+        DrawShadowText(dl, font, unit * 46.0f, ImVec2(cx, vp->Pos.y + vp->Size.y * 0.11f), gold, title, unit);
+
+        const float step = unit * 50.0f;
+        for (int i = 0; i < BR_OPTIONS_MAX; i++) {
+            const bool selected = sState.setupIndex == i;
+            ImVec2 centre(cx, vp->Pos.y + vp->Size.y * 0.24f + step * i);
+            ImVec2 a(centre.x - unit * 420.0f, centre.y - step * 0.5f);
+            ImVec2 b(centre.x + unit * 420.0f, centre.y + step * 0.5f);
+            if (Hovered(mouse, a, b)) {
+                if (moved) {
+                    sState.setupIndex = i;
+                }
+                if (clicked) {
+                    sState.setupIndex = i;
+                    ChangeBossRushOption(i, 1);
+                }
+            }
+            if (selected) {
+                dl->AddRectFilled(a, b, IM_COL32(0, 0, 0, 120), unit * 8.0f);
+            }
+            const int value = gSaveContext.ship.quest.data.bossRush.options[i];
+            const char* label = BossRush_GetSettingName((u8)i, 0);
+            const char* choice = BossRush_GetSettingChoiceName((u8)i, (u8)value, 0);
+            const float size = unit * (selected ? 28.0f : 26.0f);
+            const ImU32 col = selected ? gold : text;
+            ImVec2 lsz = font->CalcTextSizeA(size, FLT_MAX, 0.0f, label);
+            ImVec2 csz = font->CalcTextSizeA(size, FLT_MAX, 0.0f, choice);
+            DrawShadowText(dl, font, size, ImVec2(a.x + unit * 16.0f + lsz.x * 0.5f, centre.y), col, label, unit);
+            DrawShadowText(dl, font, size, ImVec2(b.x - unit * 16.0f - csz.x * 0.5f, centre.y), col, choice, unit);
+        }
+        footer = "A / Start: Begin     Left / Right: Change     B: Back";
+    }
+
+    DrawFooter(dl, font, vp->Pos, vp->Size, unit, footer);
+}
+
 } // namespace
 
 void RemixFileSelect_SetVisible(int visible) {
@@ -376,8 +707,6 @@ void RemixFileSelect_Reset(void) {
 }
 
 int RemixFileSelect_Input(int up, int down, int left, int right, int confirm, int back, int erase) {
-    (void)left;
-    (void)right;
     sState.sfx = REMIX_FS_SFX_NONE;
     if (!sState.visible || SaveManager::Instance == nullptr || sState.pendingAction != REMIX_FS_NONE) {
         return REMIX_FS_SFX_NONE;
@@ -484,8 +813,98 @@ int RemixFileSelect_Input(int up, int down, int left, int right, int confirm, in
                 sState.sfx = REMIX_FS_SFX_CLOSE;
             }
             break;
+        case Screen::Name:
+            if (up) {
+                sState.nameRow = (sState.nameRow + kNameRows - 1) % kNameRows;
+                sState.sfx = REMIX_FS_SFX_CURSOR;
+            } else if (down) {
+                sState.nameRow = (sState.nameRow + 1) % kNameRows;
+                sState.sfx = REMIX_FS_SFX_CURSOR;
+            } else if (left) {
+                sState.nameCol = (sState.nameCol + kNameCols - 1) % kNameCols;
+                sState.sfx = REMIX_FS_SFX_CURSOR;
+            } else if (right) {
+                sState.nameCol = (sState.nameCol + 1) % kNameCols;
+                sState.sfx = REMIX_FS_SFX_CURSOR;
+            } else if (confirm) {
+                ActivateNameCell();
+            } else if (erase) {
+                if (!sState.name.empty()) {
+                    sState.name.pop_back();
+                    sState.sfx = REMIX_FS_SFX_CURSOR;
+                }
+            } else if (back) {
+                if (!sState.name.empty()) {
+                    sState.name.pop_back();
+                    sState.sfx = REMIX_FS_SFX_CURSOR;
+                } else {
+                    sState.screen = sState.nameBack;
+                    sState.sfx = REMIX_FS_SFX_CLOSE;
+                }
+            }
+            if (sState.nameRow < 4 && sState.nameCol >= (int)std::strlen(kNameGrid[sState.nameRow])) {
+                sState.nameCol = (int)std::strlen(kNameGrid[sState.nameRow]) - 1;
+            }
+            break;
+        case Screen::Rando:
+            // A seed made earlier, or a spoiler log dropped on the window, is picked up here
+            if (!Randomizer_IsGenerating()) {
+                FileChoose_UpdateRandomizerSpoilerFile();
+            } else {
+                break;
+            }
+            if (up) {
+                Move(sState.setupIndex, 3, -1);
+            } else if (down) {
+                Move(sState.setupIndex, 3, 1);
+            } else if (confirm) {
+                ActivateRando();
+            } else if (back) {
+                sState.screen = Screen::NewKind;
+                sState.sfx = REMIX_FS_SFX_CLOSE;
+            }
+            break;
+        case Screen::Speedrun: {
+            const int count = std::max(1, Speedrun_GetPresetCount());
+            if (up) {
+                Move(sState.presetIndex, count, -1);
+            } else if (down) {
+                Move(sState.presetIndex, count, 1);
+            } else if (confirm) {
+                GoName(Screen::Speedrun);
+            } else if (back) {
+                sState.screen = Screen::NewKind;
+                sState.sfx = REMIX_FS_SFX_CLOSE;
+            }
+            break;
+        }
+        case Screen::BossRush:
+            if (up) {
+                Move(sState.setupIndex, BR_OPTIONS_MAX, -1);
+            } else if (down) {
+                Move(sState.setupIndex, BR_OPTIONS_MAX, 1);
+            } else if (left) {
+                ChangeBossRushOption(sState.setupIndex, -1);
+            } else if (right) {
+                ChangeBossRushOption(sState.setupIndex, 1);
+            } else if (confirm) {
+                ActivateBossRush();
+            } else if (back) {
+                sState.screen = Screen::NewKind;
+                sState.sfx = REMIX_FS_SFX_CLOSE;
+            }
+            break;
     }
     return sState.sfx;
+}
+
+void RemixFileSelect_GetNewGame(char* name, int* speedrunIndex) {
+    if (name != nullptr) {
+        std::snprintf(name, 9, "%s", sState.pendingName.c_str());
+    }
+    if (speedrunIndex != nullptr) {
+        *speedrunIndex = sState.pendingSpeedrun;
+    }
 }
 
 int RemixFileSelect_PollAction(int* slot, int* kind) {
@@ -611,6 +1030,9 @@ void RemixFileSelect_Draw() {
             }
             DrawFooter(dl, font, vp->Pos, vp->Size, unit, footer);
         }
+    } else if (IsSetupScreen()) {
+        // No background here: Link and Epona stay in view over the title
+        DrawSetup(dl, font, vp, unit, mouse, clicked);
     } else {
         // Dim the scene behind the list
         dl->AddRectFilled(vp->Pos, ImVec2(vp->Pos.x + vp->Size.x, vp->Pos.y + vp->Size.y), IM_COL32(8, 12, 24, 190));
