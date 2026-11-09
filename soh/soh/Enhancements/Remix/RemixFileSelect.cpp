@@ -57,31 +57,30 @@ std::shared_ptr<Fast::Fast3dGui> GetGui() {
     return std::dynamic_pointer_cast<Fast::Fast3dGui>(Ship::Context::GetRawInstance()->GetWindow()->GetGui());
 }
 
-// Character codes of the file name. The PAL and NTSC versions of the game number them differently.
+// Character codes of the file name. Digits are 0-9 in both versions; the letters differ between the PAL and the NTSC
+// numbering, and each file remembers which one it was written with.
 std::string DecodeName(const SaveFileMetaInfo& meta) {
-    const bool pal = ResourceMgr_GetGameRegion(0) == GAME_REGION_PAL;
+    const bool pal = meta.filenameLanguage == NAME_LANGUAGE_PAL;
     std::string out;
     for (int i = 0; i < 8; i++) {
         const int c = meta.playerName[i];
         char ch = '?';
-        if (pal) {
-            if (c <= 0x09) {
-                ch = '0' + c;
-            } else if (c <= 0x23) {
+        if (c <= 0x09) {
+            ch = '0' + c;
+        } else if (pal) {
+            if (c <= 0x23) {
                 ch = 'A' + (c - 0x0A);
             } else if (c <= 0x3D) {
                 ch = 'a' + (c - 0x24);
             } else if (c == 0x3E) {
                 ch = ' ';
-            } else if (c == 0x40) {
-                ch = '-';
             } else if (c == 0x3F) {
+                ch = '-';
+            } else if (c == 0x40) {
                 ch = '.';
             }
         } else {
-            if (c >= 0xA1 && c <= 0xAA) {
-                ch = '0' + (c - 0xA1);
-            } else if (c >= 0xAB && c <= 0xC4) {
+            if (c >= 0xAB && c <= 0xC4) {
                 ch = 'A' + (c - 0xAB);
             } else if (c >= 0xC5 && c <= 0xDE) {
                 ch = 'a' + (c - 0xC5);

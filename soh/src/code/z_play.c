@@ -12,6 +12,7 @@
 #include "soh/OTRGlobals.h"
 #include "soh/ResourceManagerHelpers.h"
 #include "soh/SaveManager.h"
+#include "soh/Enhancements/Remix/RemixFileSelect.h"
 #include "soh/framebuffer_effects.h"
 
 #include <time.h>
@@ -354,6 +355,11 @@ u8 CheckBridgeRewardCount() {
 
 void Play_Init(GameState* thisx) {
     PlayState* play = (PlayState*)thisx;
+
+    // Remix of Harkinian: the title menu's black fade must not outlive the title screen
+    RemixFileSelect_SetFade(0);
+    RemixFileSelect_SetVisible(0);
+    RemixFileSelect_SetLogoAlpha(0);
     GraphicsContext* gfxCtx = play->state.gfxCtx;
     uintptr_t zAlloc;
     uintptr_t zAllocAligned;

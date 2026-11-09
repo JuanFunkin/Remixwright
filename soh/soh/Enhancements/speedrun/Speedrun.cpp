@@ -298,6 +298,22 @@ static void UpdateExemptLines(uint8_t presetIndex) {
     }
 }
 
+// The preset list without a file select, for the Remix title screen
+extern "C" void Speedrun_ReloadPresetChoices() {
+    // "None" keeps the player's current settings.
+    sPresetChoices = GetSpeedrunPresets();
+    sPresetChoices.emplace_back(SPEEDRUN_PRESET_NONE, "");
+    sExemptLinesIndex = -1;
+}
+
+extern "C" int Speedrun_GetPresetCount() {
+    return static_cast<int>(sPresetChoices.size());
+}
+
+extern "C" const char* Speedrun_GetPresetName(int index) {
+    return sPresetChoices[index].first.c_str();
+}
+
 extern "C" void Speedrun_LoadPresetChoices(FileChooseContext* fileChooseContext) {
     // "None" keeps the player's current settings.
     sPresetChoices = GetSpeedrunPresets();

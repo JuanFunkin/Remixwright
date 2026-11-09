@@ -227,6 +227,8 @@ static void FileChoose_RemixMenuFrame(FileChooseContext* this) {
     FileChoose_RemixPlaySfx(RemixFileSelect_Input(
         (this->stickRelY > 30) || CHECK_BTN_ALL(input->press.button, BTN_DUP),
         (this->stickRelY < -30) || CHECK_BTN_ALL(input->press.button, BTN_DDOWN),
+        (this->stickRelX < -30) || CHECK_BTN_ALL(input->press.button, BTN_DLEFT),
+        (this->stickRelX > 30) || CHECK_BTN_ALL(input->press.button, BTN_DRIGHT),
         CHECK_BTN_ALL(input->press.button, BTN_A) || CHECK_BTN_ALL(input->press.button, BTN_START),
         CHECK_BTN_ALL(input->press.button, BTN_B), CHECK_BTN_ALL(input->press.button, BTN_Z)));
 
@@ -483,6 +485,8 @@ u8 generating;
 int retries = 0;
 bool fileSelectSpoilerFileLoaded = false;
 
+void FileChoose_UpdateRandomizerSpoilerFile(void);
+
 void FileChoose_UpdateRandomizer() {
     if (Randomizer_IsGenerating() && generating == 0) {
         generating = 1;
@@ -502,6 +506,11 @@ void FileChoose_UpdateRandomizer() {
         return;
     }
 
+    FileChoose_UpdateRandomizerSpoilerFile();
+}
+
+// Picks up a spoiler log that was dropped on the window or left by an earlier seed. Also used by the Remix title screen.
+void FileChoose_UpdateRandomizerSpoilerFile(void) {
     if (!SpoilerFileExists(CVarGetString(CVAR_GENERAL("SpoilerLog"), "")) &&
         !CVarGetInteger(CVAR_RANDOMIZER_SETTING("DontGenerateSpoiler"), 0)) {
         CVarSetString(CVAR_GENERAL("SpoilerLog"), "");
@@ -2900,6 +2909,12 @@ void FileChoose_LoadGame(GameState* thisx) {
     Audio_PlaySfxGeneral(NA_SE_SY_FSEL_DECIDE_L, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
                          &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
     FileChoose_LoadGameSlot(&this->state, fileSlot, this->buttonIndex);
+}
+
+// Called by the title screen (En_Mag) when Boss Rush is started from its options
+void FileChoose_LoadBossRushFromTitle(GameState* state) {
+    gSaveContext.ship.quest.id = QUEST_BOSSRUSH;
+    FileChoose_LoadGameSlot(state, 0xFE, 0xFE);
 }
 
 // Called by the title screen (En_Mag) when a file is picked in Continue

@@ -10,6 +10,7 @@
 
 extern "C" {
 #include "z64.h"
+#include "functions.h"
 #include "macros.h"
 extern PlayState* gPlayState;
 }
@@ -35,8 +36,17 @@ extern "C" int RemixOcarinaCamera_Begin(PlayState* play, Player* player) {
     }
 
     sWasManual = play->manualCamera;
-    sSavedX = play->camX;
-    sSavedY = play->camY;
+    if (play->manualCamera) {
+        sSavedX = play->camX;
+        sSavedY = play->camY;
+    } else {
+        // The game's own camera does not turn back by itself while Link stands still, so remember where it looks
+        Camera* camera = Play_GetCamera(play, CAM_ID_MAIN);
+        VecSph sph;
+        OLib_Vec3fDiffToVecSphGeo(&sph, &camera->at, &camera->eye);
+        sSavedX = sph.yaw;
+        sSavedY = sph.pitch;
+    }
     sScene = play->sceneNum;
     sActive = true;
     return 1;
@@ -62,9 +72,8 @@ static void OnFrameUpdate() {
         return;
     }
 
-    // The camera was following Link on its own: hand it back to the game, which eases it to where it belongs
-    if (!sWasManual) {
-        gPlayState->manualCamera = false;
+    // The camera was never moved by hand, so there is nothing to bring back
+    if (!gPlayState->manualCamera) {
         sActive = false;
         return;
     }
@@ -74,6 +83,10 @@ static void OnFrameUpdate() {
     if (std::fabs(dx) < 256.0f && std::fabs(dy) < 256.0f) {
         gPlayState->camX = sSavedX;
         gPlayState->camY = sSavedY;
+        // Back where it was: if it was following Link on its own before, hand it back to the game
+        if (!sWasManual) {
+            gPlayState->manualCamera = false;
+        }
         sActive = false;
         return;
     }

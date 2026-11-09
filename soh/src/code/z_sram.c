@@ -224,14 +224,15 @@ void Sram_OpenSave() {
     gSaveContext.magicLevel = 0;
 }
 
-void Sram_InitSave(FileChooseContext* fileChooseCtx) {
+// Creates a new file in a slot. The name must already be in the slot's meta info. Used by the file select and by the
+// Remix title screen.
+void Sram_InitSaveSlot(s32 slot, u8 currentQuest, u8 n64ddFlag, u8 speedrunIndex) {
     u16 offset;
     u16 j;
     u16* ptr;
     u16 checksum;
 
-    if (fileChooseCtx->buttonIndex != 0 ||
-        !Ship_QuestDebugEnabled(fileChooseCtx->questType[fileChooseCtx->buttonIndex])) {
+    if (slot != 0 || !Ship_QuestDebugEnabled(currentQuest)) {
         Sram_InitNewSave();
     } else {
         Sram_InitDebugSave();
@@ -248,18 +249,15 @@ void Sram_InitSave(FileChooseContext* fileChooseCtx) {
             (gSaveContext.language == LANGUAGE_JPN) ? NAME_LANGUAGE_NTSC_JPN : NAME_LANGUAGE_NTSC_ENG;
     }
 
-    if ((fileChooseCtx->buttonIndex == 0 &&
-         Ship_QuestDebugEnabled(fileChooseCtx->questType[fileChooseCtx->buttonIndex]))) {
+    if ((slot == 0 && Ship_QuestDebugEnabled(currentQuest))) {
         gSaveContext.cutsceneIndex = 0;
     }
 
     for (offset = 0; offset < 8; offset++) {
-        gSaveContext.playerName[offset] = Save_GetSaveMetaInfo(fileChooseCtx->buttonIndex)->playerName[offset];
+        gSaveContext.playerName[offset] = Save_GetSaveMetaInfo(slot)->playerName[offset];
     }
 
-    gSaveContext.n64ddFlag = fileChooseCtx->n64ddFlag;
-
-    u8 currentQuest = fileChooseCtx->questType[fileChooseCtx->buttonIndex];
+    gSaveContext.n64ddFlag = n64ddFlag;
 
     if (currentQuest == QUEST_RANDOMIZER && (Randomizer_IsSeedGenerated() || Randomizer_IsSpoilerLoaded())) {
         gSaveContext.ship.quest.id = QUEST_RANDOMIZER;
@@ -270,11 +268,16 @@ void Sram_InitSave(FileChooseContext* fileChooseCtx) {
     }
 
     if (IS_SPEEDRUN) {
-        Speedrun_InitSaveFile(fileChooseCtx->speedrunIndex);
+        Speedrun_InitSaveFile(speedrunIndex);
     }
 
     Save_SaveFile();
     SaveManager_ThreadPoolWait();
+}
+
+void Sram_InitSave(FileChooseContext* fileChooseCtx) {
+    Sram_InitSaveSlot(fileChooseCtx->buttonIndex, fileChooseCtx->questType[fileChooseCtx->buttonIndex],
+                      fileChooseCtx->n64ddFlag, fileChooseCtx->speedrunIndex);
 }
 
 void Sram_InitSram(GameState* gameState) {
