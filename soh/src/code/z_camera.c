@@ -1,6 +1,7 @@
 #include <libultraship/libultra.h>
 #include "global.h"
 #include "vt.h"
+#include "soh/Enhancements/Remix/RemixThirdPersonAim.h"
 
 #include <string.h>
 
@@ -1493,6 +1494,13 @@ s32 Camera_Free(Camera* camera) {
     at->z = Camera_LERPCeilF(camera->player->actor.world.pos.z, camera->at.z, 0.5f, 1.0f);
 
     playerHeight = Player_GetHeight(camera->player);
+
+    // Remix of Harkinian: while aiming from behind Link, look over his right shoulder so he does not cover the aim.
+    if (RemixThirdPersonAim_IsActive()) {
+        f32 shoulderYaw = BINANG_TO_RAD((s16)(camera->play->camX + 0x4000));
+        at->x += sinf(shoulderYaw) * 28.0f;
+        at->z += cosf(shoulderYaw) * 28.0f;
+    }
 
     if (RELOAD_PARAMS) {
         OLib_Vec3fDiffToVecSphGeo(&spA8, &camera->at, &camera->eye);

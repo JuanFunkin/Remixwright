@@ -9,6 +9,17 @@
 // default is added), so anything the player changes afterwards in the menus is kept.
 static void ApplyRemixDefaults() {
     const char* flag = CVAR_GENERAL("RemixDefaultsV1");
+    const char* flag2 = CVAR_GENERAL("RemixDefaultsV2");
+
+    // V2: aiming from behind Link, walking while aiming, and the right stick aims
+    if (!CVarGetInteger(flag2, 0)) {
+        CVarSetInteger(CVAR_SETTING("MoveInFirstPerson"), 1);
+        CVarSetInteger(CVAR_SETTING("Controls.RightStickAim"), 1);
+        CVarSetInteger(CVAR_ENHANCEMENT("RemixThirdPersonAim"), 1);
+        CVarSetInteger(flag2, 1);
+        CVarSave();
+    }
+
     if (CVarGetInteger(flag, 0)) {
         return;
     }

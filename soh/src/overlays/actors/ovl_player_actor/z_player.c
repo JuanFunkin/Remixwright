@@ -31,6 +31,7 @@
 #include "soh/OTRGlobals.h"
 #include "soh/Enhancements/savestate_serialize.h"
 #include "soh/Enhancements/Remix/RemixOcarinaCamera.h"
+#include "soh/Enhancements/Remix/RemixThirdPersonAim.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -5864,6 +5865,13 @@ s32 func_8083AD4C(PlayState* play, Player* this) {
         }
         // Check if aiming camera mode should be overridden due to player settings
         GameInteractor_Should(VB_CHANGE_AIMING_CAMERA, true, &this->heldItemAction, &camMode);
+        // Remix of Harkinian: aim from behind Link instead of the first person view
+        {
+            int remixCamMode = camMode;
+            if (RemixThirdPersonAim_OverrideCamMode(this, &remixCamMode)) {
+                camMode = remixCamMode;
+            }
+        }
     } else {
         camMode = CAM_MODE_FIRST_PERSON;
     }
