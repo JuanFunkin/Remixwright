@@ -2917,6 +2917,45 @@ void FileChoose_LoadBossRushFromTitle(GameState* state) {
     FileChoose_LoadGameSlot(state, 0xFE, 0xFE);
 }
 
+void Sram_InitSaveSlot(s32 slot, u8 currentQuest, u8 n64ddFlag, u8 speedrunIndex);
+
+// Called by the title screen (En_Mag) once the name (and the Randomizer, Speedrun preset...) were chosen over the
+// title. Creates the file in `slot` with that name and starts the game from it.
+void FileChoose_StartNewGameFromTitle(GameState* state, s32 slot, s32 quest, const char* name, s32 speedrunIndex) {
+    const s32 pal = (ResourceMgr_GetGameRegion(0) == GAME_REGION_PAL) && (gSaveContext.language != LANGUAGE_JPN);
+    u8* playerName = Save_GetSaveMetaInfo(slot)->playerName;
+    s32 i;
+    s32 len = 0;
+    u16 dayTime;
+
+    // The name is plain text (letters, digits, spaces): turn it into the codes of the game's own font
+    for (i = 0; i < 8; i++) {
+        playerName[i] = pal ? 0x3E : 0xDF;
+    }
+    for (i = 0; name != NULL && name[i] != '\0' && len < 8; i++) {
+        char c = name[i];
+        u8 code = pal ? 0x3E : 0xDF;
+
+        if (c >= '0' && c <= '9') {
+            code = (u8)(c - '0');
+        } else if (c >= 'A' && c <= 'Z') {
+            code = (u8)((pal ? 0x0A : 0xAB) + (c - 'A'));
+        } else if (c >= 'a' && c <= 'z') {
+            code = (u8)((pal ? 0x24 : 0xC5) + (c - 'a'));
+        }
+        playerName[len++] = code;
+    }
+
+    gSaveContext.fileNum = slot;
+    dayTime = ((void)0, gSaveContext.dayTime);
+    Sram_InitSaveSlot(slot, (u8)quest, 0, (u8)speedrunIndex);
+    gSaveContext.dayTime = dayTime;
+
+    Audio_PlaySfxGeneral(NA_SE_SY_FSEL_DECIDE_L, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
+                         &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
+    FileChoose_LoadGameSlot(state, slot, (slot <= FS_BTN_MAIN_FILE_3) ? slot : FS_BTN_SELECT_FILE_1);
+}
+
 // Called by the title screen (En_Mag) when a file is picked in Continue
 void FileChoose_LoadGameFromTitle(GameState* state, s32 slot) {
     FileChoose_LoadGameSlot(state, slot, (slot <= FS_BTN_MAIN_FILE_3) ? slot : FS_BTN_SELECT_FILE_1);
