@@ -28,7 +28,7 @@ typedef enum {
 // Shown or hidden for this frame
 void RemixFileSelect_SetVisible(int visible);
 // Game input for this frame (edge triggered, with stick repeat already applied). Returns the sound to play.
-int RemixFileSelect_Input(int up, int down, int confirm, int back, int erase);
+int RemixFileSelect_Input(int up, int down, int left, int right, int confirm, int back, int erase);
 // The action chosen since the last call, REMIX_FS_NONE if nothing. kind is only set for REMIX_FS_NEW_GAME.
 int RemixFileSelect_PollAction(int* slot, int* kind);
 // 1 when an action was chosen and has not been collected yet

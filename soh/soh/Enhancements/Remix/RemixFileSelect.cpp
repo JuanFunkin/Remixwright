@@ -375,7 +375,9 @@ void RemixFileSelect_Reset(void) {
     sState = fresh;
 }
 
-int RemixFileSelect_Input(int up, int down, int confirm, int back, int erase) {
+int RemixFileSelect_Input(int up, int down, int left, int right, int confirm, int back, int erase) {
+    (void)left;
+    (void)right;
     sState.sfx = REMIX_FS_SFX_NONE;
     if (!sState.visible || SaveManager::Instance == nullptr || sState.pendingAction != REMIX_FS_NONE) {
         return REMIX_FS_SFX_NONE;

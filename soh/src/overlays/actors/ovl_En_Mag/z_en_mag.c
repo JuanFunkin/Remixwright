@@ -90,7 +90,8 @@ static void EnMag_RemixMenuInput(PlayState* play) {
         down |= (dir < 0);
     }
 
-    switch (RemixFileSelect_Input(up, down,
+    switch (RemixFileSelect_Input(up, down, CHECK_BTN_ALL(input->press.button, BTN_DLEFT),
+                                  CHECK_BTN_ALL(input->press.button, BTN_DRIGHT),
                                   CHECK_BTN_ALL(input->press.button, BTN_A) ||
                                       CHECK_BTN_ALL(input->press.button, BTN_START),
                                   CHECK_BTN_ALL(input->press.button, BTN_B), CHECK_BTN_ALL(input->press.button, BTN_Z))) {
