@@ -6,6 +6,7 @@
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include "soh/Enhancements/savestate_serialize.h"
+#include "soh/Enhancements/Remix/RemixOcarinaMic.h"
 #include <libultraship/bridge/consolevariablebridge.h>
 
 // TODO: can these macros be shared between files? code_800F9280 seems to use
@@ -1498,6 +1499,27 @@ void AudioOcarina_ReadControllerInput(void) {
     }
     if (rstick_y < -sensitivity) {
         sOcarinaInputButtonCur |= BTN_CUSTOM_RSTICK_DOWN;
+    }
+
+    // Remix of Harkinian: a note hummed into the microphone counts as its button being held
+    switch (RemixOcarinaMic_GetNote()) {
+        case 0:
+            sOcarinaInputButtonCur |= sOcarinaD4BtnMap;
+            break;
+        case 1:
+            sOcarinaInputButtonCur |= sOcarinaF4BtnMap;
+            break;
+        case 2:
+            sOcarinaInputButtonCur |= sOcarinaA4BtnMap;
+            break;
+        case 3:
+            sOcarinaInputButtonCur |= sOcarinaB4BtnMap;
+            break;
+        case 4:
+            sOcarinaInputButtonCur |= sOcarinaD5BtnMap;
+            break;
+        default:
+            break;
     }
 }
 
