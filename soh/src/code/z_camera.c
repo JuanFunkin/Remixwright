@@ -755,6 +755,8 @@ s32 Camera_CopyPREGToModeValues(Camera* camera) {
 #define SHRINKWIN_CURVAL (0x8000)
 #define IFACE_ALPHA_MASK (0x0F00)
 
+extern PlayState* gPlayState;
+
 void Camera_UpdateInterface(s16 flags) {
     s16 interfaceAlpha;
 
