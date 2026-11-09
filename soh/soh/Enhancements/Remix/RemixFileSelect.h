@@ -15,6 +15,8 @@ typedef enum {
     REMIX_FS_NEW_GAME, // slot is an empty playthrough slot (0..2), kind is the QUEST_ of the game to start
     REMIX_FS_LOAD,     // slot is the file to load, any valid slot
     REMIX_FS_OPTIONS,
+    REMIX_FS_START_NEW,       // everything was chosen over the title: slot, kind, and the name (RemixFileSelect_GetNewGame)
+    REMIX_FS_START_BOSSRUSH,  // Boss Rush was set up over the title and starts right away
 } RemixFsAction;
 
 typedef enum {
@@ -31,6 +33,8 @@ void RemixFileSelect_SetVisible(int visible);
 int RemixFileSelect_Input(int up, int down, int left, int right, int confirm, int back, int erase);
 // The action chosen since the last call, REMIX_FS_NONE if nothing. kind is only set for REMIX_FS_NEW_GAME.
 int RemixFileSelect_PollAction(int* slot, int* kind);
+// For REMIX_FS_START_NEW: the name (plain text, at most 8 characters, `name` needs room for 9) and the Speedrun preset
+void RemixFileSelect_GetNewGame(char* name, int* speedrunIndex);
 // 1 when an action was chosen and has not been collected yet
 int RemixFileSelect_HasPending(void);
 // The pending action without collecting it
