@@ -21,6 +21,11 @@
 
 extern "C" {
 void FileChoose_UpdateRandomizerSpoilerFile(void);
+uint8_t Randomizer_IsSeedGenerated();
+uint8_t Randomizer_IsSpoilerLoaded();
+uint8_t Randomizer_GenerateRandomizer();
+bool Randomizer_IsGenerating();
+void Randomizer_ShowRandomizerMenu();
 void Speedrun_ReloadPresetChoices();
 int Speedrun_GetPresetCount();
 const char* Speedrun_GetPresetName(int index);
