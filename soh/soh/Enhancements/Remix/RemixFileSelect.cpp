@@ -11,6 +11,7 @@
 #include <ship/Context.h>
 #include <imgui.h>
 #include <ship/window/gui/GuiWindow.h>
+#include <libultraship/bridge/consolevariablebridge.h>
 
 #include "soh/SaveManager.h"
 #include "soh/OTRGlobals.h"
@@ -30,11 +31,13 @@ void Speedrun_ReloadPresetChoices();
 int Speedrun_GetPresetCount();
 const char* Speedrun_GetPresetName(int index);
 extern SaveContext gSaveContext;
+void Save_SaveGlobal(void);
+void Audio_SetSoundOutputMode(s8 outputMode);
 }
 
 namespace {
 
-enum class Screen { Main, NewKind, Section, List, Confirm, Delete, Name, Rando, Speedrun, BossRush };
+enum class Screen { Main, NewKind, Section, List, Confirm, Delete, Name, Rando, Speedrun, BossRush, Options, OotOptions };
 
 struct Entry {
     int slot;
@@ -46,6 +49,8 @@ struct State {
     bool visible = false;
     Screen screen = Screen::Main;
     int mainIndex = 0;
+    int optionsIndex = 0; // Options: 0 = application settings, 1 = Zelda OoT options
+    int ootIndex = 0;     // Zelda OoT options: 0 = sound, 1 = Z-targeting
     int listIndex = 0;
     int confirmIndex = 0; // 0 = Start, 1 = Cancel
     int deleteIndex = 0;  // 0 = Cancel, 1 = Delete
@@ -296,17 +301,50 @@ void ActivateMain() {
         }
         default:
             if (sState.titleHost) {
-                // On the title screen the settings menu opens right over Link and Epona
-                auto menu = Ship::Context::GetRawInstance()->GetWindow()->GetGui()->GetMenu();
-                if (menu != nullptr) {
-                    menu->Show();
-                }
+                // On the title screen: choose between the settings of the application and the ones of Zelda OoT
+                sState.screen = Screen::Options;
+                sState.optionsIndex = 0;
                 sState.sfx = REMIX_FS_SFX_DECIDE;
             } else {
                 Act(REMIX_FS_OPTIONS, 0);
             }
             break;
     }
+}
+
+void ActivateOptions() {
+    if (sState.optionsIndex == 0) {
+        // The settings menu opens right over Link and Epona
+        auto menu = Ship::Context::GetRawInstance()->GetWindow()->GetGui()->GetMenu();
+        if (menu != nullptr) {
+            menu->Show();
+        }
+    } else {
+        sState.screen = Screen::OotOptions;
+        sState.ootIndex = 0;
+    }
+    sState.sfx = REMIX_FS_SFX_DECIDE;
+}
+
+const char* kSoundNames[] = { "Stereo", "Mono", "Headset", "Surround" };
+const char* kTargetNames[] = { "Switch", "Hold" };
+
+// Zelda OoT options: sound mode and Z-targeting, the ones the original file select had. Kept right away.
+void ChangeOotOption(int dir) {
+    if (sState.ootIndex == 0) {
+        gSaveContext.audioSetting = (u8)(((int)gSaveContext.audioSetting + 4 + dir) % 4);
+        Audio_SetSoundOutputMode((s8)gSaveContext.audioSetting);
+    } else {
+        gSaveContext.zTargetSetting ^= 1;
+    }
+    sState.sfx = REMIX_FS_SFX_CURSOR;
+}
+
+void CloseOotOptions() {
+    Save_SaveGlobal();
+    CVarSave();
+    sState.screen = Screen::Options;
+    sState.sfx = REMIX_FS_SFX_CLOSE;
 }
 
 // Name keyboard: 5 rows of 13 cells
@@ -317,7 +355,7 @@ const char* kNameGrid[kNameRows] = { "ABCDEFGHIJKLM", "NOPQRSTUVWXYZ", "abcdefgh
 
 bool IsSetupScreen() {
     return sState.screen == Screen::Name || sState.screen == Screen::Rando || sState.screen == Screen::Speedrun ||
-           sState.screen == Screen::BossRush;
+           sState.screen == Screen::BossRush || sState.screen == Screen::OotOptions;
 }
 
 void GoName(Screen back) {
@@ -515,7 +553,39 @@ void DrawSetup(ImDrawList* dl, ImFont* font, ImGuiViewport* vp, float unit, ImVe
     const char* footer = "A / Start: Select     B: Back";
     const char* title = "";
 
-    if (sState.screen == Screen::Name) {
+    if (sState.screen == Screen::OotOptions) {
+        DrawShadowText(dl, font, unit * 46.0f, ImVec2(cx, vp->Pos.y + vp->Size.y * 0.16f), gold, "Zelda OoT options",
+                       unit);
+        const char* labels[2] = { "Sound", "Z-Targeting" };
+        const char* values[2] = { kSoundNames[gSaveContext.audioSetting & 3], kTargetNames[gSaveContext.zTargetSetting & 1] };
+        const float rowW = unit * 560.0f;
+        const float rowH = unit * 64.0f;
+        for (int i = 0; i < 2; i++) {
+            const bool selected = sState.ootIndex == i;
+            ImVec2 centre(cx, vp->Pos.y + vp->Size.y * 0.38f + rowH * 1.3f * i);
+            ImVec2 a(centre.x - rowW * 0.5f, centre.y - rowH * 0.5f);
+            ImVec2 b(centre.x + rowW * 0.5f, centre.y + rowH * 0.5f);
+            if (Hovered(mouse, a, b)) {
+                if (moved) {
+                    sState.ootIndex = i;
+                }
+                if (clicked) {
+                    sState.ootIndex = i;
+                    ChangeOotOption(1);
+                }
+            }
+            if (selected) {
+                dl->AddRectFilled(a, b, IM_COL32(0, 0, 0, 120), unit * 8.0f);
+            }
+            const float size = unit * (selected ? 30.0f : 28.0f);
+            const ImU32 col = selected ? gold : text;
+            ImVec2 lsz = font->CalcTextSizeA(size, FLT_MAX, 0.0f, labels[i]);
+            ImVec2 vsz = font->CalcTextSizeA(size, FLT_MAX, 0.0f, values[i]);
+            DrawShadowText(dl, font, size, ImVec2(a.x + unit * 18.0f + lsz.x * 0.5f, centre.y), col, labels[i], unit);
+            DrawShadowText(dl, font, size, ImVec2(b.x - unit * 18.0f - vsz.x * 0.5f, centre.y), col, values[i], unit);
+        }
+        footer = "Left / Right: Change     B: Back";
+    } else if (sState.screen == Screen::Name) {
         title = "Enter your name";
         DrawShadowText(dl, font, unit * 46.0f, ImVec2(cx, vp->Pos.y + vp->Size.y * 0.13f), gold, title, unit);
 
@@ -729,6 +799,29 @@ int RemixFileSelect_Input(int up, int down, int left, int right, int confirm, in
                 Move(sState.mainIndex, 3, 1);
             } else if (confirm) {
                 ActivateMain();
+            }
+            break;
+        case Screen::Options:
+            if (up) {
+                Move(sState.optionsIndex, 2, -1);
+            } else if (down) {
+                Move(sState.optionsIndex, 2, 1);
+            } else if (confirm) {
+                ActivateOptions();
+            } else if (back) {
+                sState.screen = Screen::Main;
+                sState.sfx = REMIX_FS_SFX_CLOSE;
+            }
+            break;
+        case Screen::OotOptions:
+            if (up || down) {
+                Move(sState.ootIndex, 2, up ? -1 : 1);
+            } else if (left) {
+                ChangeOotOption(-1);
+            } else if (right || confirm) {
+                ChangeOotOption(1);
+            } else if (back) {
+                CloseOotOptions();
             }
             break;
         case Screen::NewKind: {
@@ -958,7 +1051,8 @@ void RemixFileSelect_Draw() {
         sState.noticeTimer -= ImGui::GetIO().DeltaTime;
     }
 
-    if (sState.screen == Screen::Main || sState.screen == Screen::NewKind || sState.screen == Screen::Section) {
+    if (sState.screen == Screen::Main || sState.screen == Screen::NewKind || sState.screen == Screen::Section ||
+        sState.screen == Screen::Options) {
         // Logo
         const std::string logoName = "RemixTitleLogo";
         if (!gui->HasTextureByName(logoName)) {
@@ -981,6 +1075,11 @@ void RemixFileSelect_Draw() {
         if (sState.screen == Screen::Main) {
             labels = { "New Game", "Continue", "Options" };
             enabled = { true, !AvailableCategories().empty(), true };
+        } else if (sState.screen == Screen::Options) {
+            labels = { "Application settings", "Zelda OoT options" };
+            enabled = { true, true };
+            index = &sState.optionsIndex;
+            footer = "A / Start: Select     B: Back";
         } else if (sState.screen == Screen::NewKind) {
             for (const Kind& k : NewGameKinds()) {
                 labels.push_back(k.label);
@@ -1018,6 +1117,8 @@ void RemixFileSelect_Draw() {
                         *index = i;
                         if (sState.screen == Screen::Main) {
                             ActivateMain();
+                        } else if (sState.screen == Screen::Options) {
+                            ActivateOptions();
                         } else if (sState.screen == Screen::NewKind) {
                             ActivateNewKind();
                         } else {
