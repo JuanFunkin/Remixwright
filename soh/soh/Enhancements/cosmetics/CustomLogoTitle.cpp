@@ -7,6 +7,7 @@
 #include "assets/objects/gameplay_keep/gameplay_keep.h"
 #include "soh_assets.h"
 #include "soh/cvar_prefixes.h"
+#include "soh/Enhancements/Remix/RemixBootLogo.h"
 
 extern "C" {
 #include "z64.h"
@@ -23,6 +24,7 @@ extern void Title_SetupView(TitleContext*, f32, f32, f32);
 
 #define LOGO_TO_DRAW_LUS 0
 #define LOGO_TO_DRAW_N64 1
+#define LOGO_TO_DRAW_REMIX 2
 
 static bool shouldDrawIceOnSpinningLogo = false;
 
@@ -131,6 +133,9 @@ extern "C" void CustomLogoTitle_Main(TitleContext* titleContext) {
     if (CVAR_BOOTSEQUENCE_VALUE == BOOTSEQUENCE_DEFAULT) {
         if (logosSeen == 0) {
             logoToDraw = LOGO_TO_DRAW_LUS;
+        } else if (logosSeen == 1) {
+            // Remix of Harkinian: its own logo between the Ship logo and the Nintendo 64 logo
+            logoToDraw = LOGO_TO_DRAW_REMIX;
         } else {
             logoToDraw = LOGO_TO_DRAW_N64;
         }
@@ -146,7 +151,12 @@ extern "C" void CustomLogoTitle_Main(TitleContext* titleContext) {
     gSPSegment(POLY_OPA_DISP++, 1, (uintptr_t)titleContext->staticSegment);
     Gfx_SetupFrame(titleContext->state.gfxCtx, 0, 0, 0);
     Title_Calc(titleContext);
-    CustomLogoTitle_Draw(titleContext, logoToDraw);
+    if (logoToDraw == LOGO_TO_DRAW_REMIX) {
+        // Black screen, the logo is drawn by RemixBootLogo and follows the same fade in and out
+        RemixBootLogo_SetAlpha(255 - titleContext->coverAlpha);
+    } else {
+        CustomLogoTitle_Draw(titleContext, logoToDraw);
+    }
 
     if (titleContext->exit) {
         gSaveContext.seqId = (u8)NA_BGM_DISABLED;
@@ -156,11 +166,11 @@ extern "C" void CustomLogoTitle_Main(TitleContext* titleContext) {
 
         logosSeen++;
 
-        if (CVAR_BOOTSEQUENCE_VALUE == BOOTSEQUENCE_DEFAULT && logosSeen == 1) {
+        if (CVAR_BOOTSEQUENCE_VALUE == BOOTSEQUENCE_DEFAULT && logosSeen < 3) {
             SET_NEXT_GAMESTATE(&titleContext->state, Title_Init, TitleContext);
         }
 
-        if ((CVAR_BOOTSEQUENCE_VALUE == BOOTSEQUENCE_DEFAULT && logosSeen == 2) ||
+        if ((CVAR_BOOTSEQUENCE_VALUE == BOOTSEQUENCE_DEFAULT && logosSeen == 3) ||
             (CVAR_BOOTSEQUENCE_VALUE == BOOTSEQUENCE_AUTHENTIC)) {
             SET_NEXT_GAMESTATE(&titleContext->state, Opening_Init, OpeningContext);
             logosSeen = 0;
