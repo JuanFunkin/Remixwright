@@ -59,8 +59,8 @@ const SongEntry kSongs[] = {
 };
 constexpr int kSongCount = sizeof(kSongs) / sizeof(kSongs[0]);
 
-// The five notes from low to high (D4 F4 A4 B4 D5) are the buttons L, R, A, Y and X in the remake
-const char* kNoteLabels[5] = { "L", "R", "A", "Y", "X" };
+// The five notes from low to high (D4 F4 A4 B4 D5) are played with A, C-Down, C-Right, C-Left and C-Up for now.
+// The index is the same one the game uses for its ocarina buttons.
 
 bool sSongbookOpen = false;
 int sSelected = 0;
@@ -103,8 +103,65 @@ ImTextureID CustomTexture(const char* name) {
     return gui->GetTextureByName(name);
 }
 
-// A button chip as in the remake hints: a small circle with the letter, or a rounded tag for ZL
+// The glyph of one of the game's ocarina buttons: 0 = A, 1 = C-Down, 2 = C-Right, 3 = C-Left, 4 = C-Up
+void DrawNoteGlyph(ImDrawList* dl, ImVec2 c, float r, int button) {
+    if (button == 0) {
+        dl->AddCircleFilled(c, r, IM_COL32(70, 150, 255, 255), 24);
+        dl->AddCircle(c, r, IM_COL32(255, 255, 255, 230), 24, 1.5f);
+        ImFont* font = ImGui::GetFont();
+        const float size = r * 1.3f;
+        ImVec2 ts = font->CalcTextSizeA(size, FLT_MAX, 0.0f, "A");
+        dl->AddText(font, size, ImVec2(c.x - ts.x * 0.5f, c.y - ts.y * 0.5f), IM_COL32(255, 255, 255, 255), "A");
+        return;
+    }
+    ImVec2 a;
+    ImVec2 b;
+    ImVec2 d;
+    switch (button) {
+        case 1: // down
+            a = ImVec2(c.x - r, c.y - r * 0.7f);
+            b = ImVec2(c.x + r, c.y - r * 0.7f);
+            d = ImVec2(c.x, c.y + r);
+            break;
+        case 2: // right
+            a = ImVec2(c.x - r * 0.7f, c.y - r);
+            b = ImVec2(c.x - r * 0.7f, c.y + r);
+            d = ImVec2(c.x + r, c.y);
+            break;
+        case 3: // left
+            a = ImVec2(c.x + r * 0.7f, c.y - r);
+            b = ImVec2(c.x + r * 0.7f, c.y + r);
+            d = ImVec2(c.x - r, c.y);
+            break;
+        default: // up
+            a = ImVec2(c.x - r, c.y + r * 0.7f);
+            b = ImVec2(c.x + r, c.y + r * 0.7f);
+            d = ImVec2(c.x, c.y - r);
+            break;
+    }
+    dl->AddTriangleFilled(a, b, d, IM_COL32(255, 205, 60, 255));
+    dl->AddTriangle(a, b, d, IM_COL32(255, 255, 255, 230), 1.5f);
+}
+
+// A hint chip: the ocarina buttons ("A", "CD", "CR", "CL", "CU") as glyphs, anything else as a small tag with text
 float DrawChip(ImDrawList* dl, ImVec2 pos, float h, const char* label) {
+    int note = -1;
+    if (std::string(label) == "A") {
+        note = 0;
+    } else if (std::string(label) == "CD") {
+        note = 1;
+    } else if (std::string(label) == "CR") {
+        note = 2;
+    } else if (std::string(label) == "CL") {
+        note = 3;
+    } else if (std::string(label) == "CU") {
+        note = 4;
+    }
+    if (note >= 0) {
+        DrawNoteGlyph(dl, ImVec2(pos.x + h * 0.5f, pos.y + h * 0.5f), h * 0.5f, note);
+        return h;
+    }
+
     ImFont* font = ImGui::GetFont();
     const float size = h * 0.62f;
     ImVec2 ts = font->CalcTextSizeA(size, FLT_MAX, 0.0f, label);
@@ -142,7 +199,7 @@ void DrawHints(ImDrawList* dl, ImVec2 vpPos, ImVec2 vpSize, float unit, bool son
     int n = 0;
     if (!songbook) {
         hints[n++] = { "Check songbook", { "ZL" }, 1 };
-        hints[n++] = { "Play a note", { "L", "R", "Y", "X", "A" }, 5 };
+        hints[n++] = { "Play a note", { "CL", "CU", "CR", "CD", "A" }, 5 };
         hints[n++] = { "Cancel", { "B" }, 1 };
     } else {
         hints[n++] = { "Choose a song", { "<", ">" }, 2 };
@@ -155,7 +212,11 @@ void DrawHints(ImDrawList* dl, ImVec2 vpPos, ImVec2 vpSize, float unit, bool son
     for (int i = 0; i < n; i++) {
         total += TextWidth(size, hints[i].text) + 8.0f * unit;
         for (int c = 0; c < hints[i].chipCount; c++) {
-            total += std::max(h, TextWidth(h * 0.62f, hints[i].chips[c]) + h * 0.5f) + 4.0f * unit;
+            {
+                const std::string chip = hints[i].chips[c];
+                const bool glyph = chip == "A" || chip == "CD" || chip == "CR" || chip == "CL" || chip == "CU";
+                total += (glyph ? h : std::max(h, TextWidth(h * 0.62f, hints[i].chips[c]) + h * 0.5f)) + 4.0f * unit;
+            }
         }
         if (i + 1 < n) {
             total += gap;
@@ -273,12 +334,8 @@ void DrawSongbook(ImDrawList* dl, ImVec2 vpPos, ImVec2 vpSize, float unit) {
             // Low notes sit on the bottom line, high ones on the top line
             float y = staffTop + lineGap * (4 - btn);
             float x = staffL + step * (i + 0.5f);
-            dl->AddCircleFilled(ImVec2(x, y), 11.0f * unit, IM_COL32(35, 30, 28, 255), 24);
-            const char* label = kNoteLabels[btn];
-            float ls = 13.0f * unit;
-            float lw = TextWidth(ls, label);
-            dl->AddText(ImGui::GetFont(), ls, ImVec2(x - lw * 0.5f, y - ls * 0.5f), IM_COL32(255, 255, 255, 255),
-                        label);
+            dl->AddCircleFilled(ImVec2(x, y), 13.0f * unit, IM_COL32(35, 30, 28, 255), 24);
+            DrawNoteGlyph(dl, ImVec2(x, y), 9.0f * unit, btn);
         }
     } else {
         const char* t = "You have not learned this song yet.";
