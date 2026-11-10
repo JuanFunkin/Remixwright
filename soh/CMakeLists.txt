@@ -237,6 +237,7 @@ set(ROOT_NAMESPACE soh)
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set_target_properties(${PROJECT_NAME} PROPERTIES
         VS_GLOBAL_KEYWORD "Win32Proj"
+        OUTPUT_NAME "RemixOfHarkinian"
     )
     if(SOH_WINDOWS_64BIT)
         set_target_properties(${PROJECT_NAME} PROPERTIES
