@@ -2826,6 +2826,9 @@ void FileChoose_FadeOut(GameState* thisx) {
  */
 // Starts the game from a file. Shared by the file select and by the title screen's Continue, which loads straight
 // from the title so Link and Epona stay on screen until the fade out.
+// Remix: set while loading from the title screen, whose Play state is still running while the game loads
+static s32 sRemixLoadingFromTitle = false;
+
 static void FileChoose_LoadGameSlot(GameState* state, s32 fileSlot, s32 buttonIndex) {
     u16 swordEquipValue;
     s32 pad;
@@ -2852,6 +2855,13 @@ static void FileChoose_LoadGameSlot(GameState* state, s32 fileSlot, s32 buttonIn
     }
 
     state->running = false;
+
+    if (sRemixLoadingFromTitle) {
+        // The title's Play state (adult Link with Epona) is destroyed after this and its player writes its own age back
+        // into the save context. Make it write the age of the file that was just loaded instead.
+        ((PlayState*)state)->linkAgeOnLoad = gSaveContext.linkAge;
+        sRemixLoadingFromTitle = false;
+    }
 
     gSaveContext.respawn[0].entranceIndex = ENTR_LOAD_OPENING;
     gSaveContext.respawnFlag = 0;
@@ -2914,6 +2924,7 @@ void FileChoose_LoadGame(GameState* thisx) {
 // Called by the title screen (En_Mag) when Boss Rush is started from its options
 void FileChoose_LoadBossRushFromTitle(GameState* state) {
     gSaveContext.ship.quest.id = QUEST_BOSSRUSH;
+    sRemixLoadingFromTitle = true;
     FileChoose_LoadGameSlot(state, 0xFE, 0xFE);
 }
 
@@ -2953,11 +2964,13 @@ void FileChoose_StartNewGameFromTitle(GameState* state, s32 slot, s32 quest, con
 
     Audio_PlaySfxGeneral(NA_SE_SY_FSEL_DECIDE_L, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
                          &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
+    sRemixLoadingFromTitle = true;
     FileChoose_LoadGameSlot(state, slot, (slot <= FS_BTN_MAIN_FILE_3) ? slot : FS_BTN_SELECT_FILE_1);
 }
 
 // Called by the title screen (En_Mag) when a file is picked in Continue
 void FileChoose_LoadGameFromTitle(GameState* state, s32 slot) {
+    sRemixLoadingFromTitle = true;
     FileChoose_LoadGameSlot(state, slot, (slot <= FS_BTN_MAIN_FILE_3) ? slot : FS_BTN_SELECT_FILE_1);
 }
 
