@@ -20,6 +20,14 @@ static void ApplyRemixDefaults() {
         CVarSave();
     }
 
+    // V3: the ocarina is played with L, R, Y, X and A like the remake
+    const char* flag3 = CVAR_GENERAL("RemixDefaultsV3");
+    if (!CVarGetInteger(flag3, 0)) {
+        CVarSetInteger(CVAR_SETTING("CustomOcarina.Enabled"), 1);
+        CVarSetInteger(flag3, 1);
+        CVarSave();
+    }
+
     if (CVarGetInteger(flag, 0)) {
         return;
     }
