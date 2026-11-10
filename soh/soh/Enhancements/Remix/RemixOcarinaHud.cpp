@@ -19,6 +19,7 @@ extern "C" {
 #include "z64.h"
 #include "macros.h"
 #include "variables.h"
+#include "functions.h"
 extern PlayState* gPlayState;
 }
 
@@ -70,8 +71,27 @@ int sPrevStickDir = 0;
 bool sPrevLeft = false;
 bool sPrevRight = false;
 bool sPrevA = false;
-double sDemoStart = -1.0; // when "Listen to the melody" began, -1 when idle
-constexpr double kDemoNoteTime = 0.55;
+int sDemoStartFrame = 0;
+bool sDemoPlaying = false; // "Listen to the melody": the game plays the song and the notes follow it
+
+void StopDemo() {
+    if (sDemoPlaying) {
+        AudioOcarina_SetPlaybackSong(0, 0);
+        sDemoPlaying = false;
+    }
+}
+
+// Which note of the staff is sounding right now, -1 when none
+int DemoNoteIndex() {
+    if (!sDemoPlaying) {
+        return -1;
+    }
+    const OcarinaStaff* staff = AudioOcarina_GetPlaybackStaff();
+    if (staff->state == 0) {
+        return -1;
+    }
+    return static_cast<int>(staff->pos) - 1;
+}
 
 bool OcarinaOut() {
     if (gPlayState == nullptr) {
@@ -337,13 +357,9 @@ void DrawSongbook(ImDrawList* dl, ImVec2 vpPos, ImVec2 vpSize, float unit) {
             float x = staffL + step * (i + 0.5f);
             // While the melody is being shown, the current note lights up and pops
             float pop = 1.0f;
-            bool lit = false;
-            if (sDemoStart >= 0.0) {
-                const double t = (ImGui::GetTime() - sDemoStart) / kDemoNoteTime;
-                if (static_cast<int>(t) == i) {
-                    lit = true;
-                    pop = 1.0f + 0.35f * static_cast<float>(1.0 - (t - i));
-                }
+            const bool lit = DemoNoteIndex() == i;
+            if (lit) {
+                pop = 1.3f;
             }
             if (lit) {
                 dl->AddCircleFilled(ImVec2(x, y), 20.0f * unit * pop, IM_COL32(255, 235, 140, 150), 24);
@@ -404,21 +420,23 @@ void UpdateSongbookInput() {
     sPrevZ = z;
 
     if (!sSongbookOpen) {
-        sDemoStart = -1.0;
+        StopDemo();
         sPrevA = false;
         return;
     }
     // A: listen to the melody of the selected song
     const bool a = (in.cur.button & BTN_A) != 0;
     if (a && !sPrevA && Known(kSongs[sSelected])) {
-        sDemoStart = ImGui::GetTime();
+        // The game's own song playback: it plays the real melody with the ocarina that is out
+        AudioOcarina_SetPlaybackSong(kSongs[sSelected].songId + 1, 1);
+        sDemoPlaying = true;
+        sDemoStartFrame = ImGui::GetFrameCount();
     }
     sPrevA = a;
-    if (sDemoStart >= 0.0) {
-        const int notes = gOcarinaSongButtons[kSongs[sSelected].songId].numButtons;
-        if ((ImGui::GetTime() - sDemoStart) / kDemoNoteTime >= notes) {
-            sDemoStart = -1.0;
-        }
+    // The game reports the playback a moment after it is started; once it reports nothing, the melody is over
+    if (sDemoPlaying && AudioOcarina_GetPlaybackStaff()->state == 0 &&
+        ImGui::GetFrameCount() - sDemoStartFrame > 20) {
+        sDemoPlaying = false;
     }
     const bool left = (in.cur.button & BTN_DLEFT) != 0;
     const bool right = (in.cur.button & BTN_DRIGHT) != 0;
@@ -438,7 +456,7 @@ void UpdateSongbookInput() {
     sPrevRight = right;
     if (move != 0) {
         sSelected = (sSelected + move + kSongCount) % kSongCount;
-        sDemoStart = -1.0;
+        StopDemo();
     }
 }
 
@@ -448,6 +466,7 @@ void RemixOcarinaHud_Draw() {
     RemixOcarinaMic_Update(out ? 1 : 0);
 
     if (!out) {
+        StopDemo();
         sSongbookOpen = false;
         sPrevZ = false;
         return;
