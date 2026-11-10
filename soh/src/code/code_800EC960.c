@@ -7,6 +7,7 @@
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include "soh/Enhancements/savestate_serialize.h"
 #include "soh/Enhancements/Remix/RemixOcarinaMic.h"
+#include "soh/Enhancements/Remix/RemixOcarinaHud.h"
 #include <libultraship/bridge/consolevariablebridge.h>
 
 // TODO: can these macros be shared between files? code_800F9280 seems to use
@@ -1520,6 +1521,12 @@ void AudioOcarina_ReadControllerInput(void) {
             break;
         default:
             break;
+    }
+
+    // Remix of Harkinian: while the songbook is open the note buttons choose a song instead of playing
+    if (RemixOcarinaHud_SongbookOpen()) {
+        sOcarinaInputButtonCur = 0;
+        sOcarinaInputButtonPress = 0;
     }
 }
 
