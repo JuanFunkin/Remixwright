@@ -187,7 +187,7 @@ extern "C" int RemixItemSelector_Update(PlayState* play) {
 namespace {
 
 ImTextureID IconFor(int item) {
-    auto gui = std::dynamic_pointer_cast<Fast::Fast3dGui>(Ship::Context::GetInstance()->GetWindow()->GetGui());
+    auto gui = std::dynamic_pointer_cast<Fast::Fast3dGui>(Ship::Context::GetRawInstance()->GetWindow()->GetGui());
     if (gui == nullptr) {
         return nullptr;
     }
@@ -245,7 +245,7 @@ void RemixItemSelector_Draw() {
 
     // Name of the chosen item
     const WheelItem& cur = sItems[std::clamp(sSelected, 0, n - 1)];
-    const std::string& name = GetItemName(cur.item);
+    const std::string& name = SohUtils::GetItemName(cur.item);
     {
         const float size = 24.0f * unit;
         Shadowed(dl, size, ImVec2(c.x - TextW(size, name.c_str()) * 0.5f, c.y - ring - iconR - 52.0f * unit),
