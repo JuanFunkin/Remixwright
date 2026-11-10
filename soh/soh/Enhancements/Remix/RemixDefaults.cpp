@@ -28,12 +28,22 @@ static void ApplyRemixDefaults() {
         CVarSave();
     }
 
-    // V5: D-pad item buttons (D-Left ocarina, D-Up mask, D-Right and D-Down chosen in the selector)
+    // V5: D-pad item buttons (all four directions are chosen in the item selector)
     const char* flag5 = CVAR_GENERAL("RemixDefaultsV5");
     if (!CVarGetInteger(flag5, 0)) {
         CVarSetInteger(CVAR_ENHANCEMENT("DpadEquips"), 1);
         CVarSetInteger(CVAR_ENHANCEMENT("RemixItemSelector"), 1);
         CVarSetInteger(flag5, 1);
+        CVarSave();
+    }
+
+    // V6: the D-pad item buttons sit at the left of the screen (the right is for the item button)
+    const char* flag6 = CVAR_GENERAL("RemixDefaultsV6");
+    if (!CVarGetInteger(flag6, 0)) {
+        CVarSetInteger(CVAR_COSMETIC("HUD.Dpad.PosType"), 1); // ANCHOR_LEFT
+        CVarSetInteger(CVAR_COSMETIC("HUD.Dpad.PosX"), 24);
+        CVarSetInteger(CVAR_COSMETIC("HUD.Dpad.PosY"), 160);
+        CVarSetInteger(flag6, 1);
         CVarSave();
     }
 
