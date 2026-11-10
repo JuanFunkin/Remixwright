@@ -276,7 +276,25 @@ static bool VerifyArchiveVersion(OTRVersion version);
 std::string portArchivePath = "";
 static bool sohArchiveVersionMatch = false;
 
+// Remix of Harkinian: Nintendo Switch controllers. SDL reads them through its HIDAPI drivers, which are asked for
+// here, before SDL starts, so the Pro Controller and Joy-Cons are found over USB and Bluetooth. Two Joy-Cons count as
+// one controller. Hints set in the environment still win over these.
+static void RemixSetupSwitchControllers() {
+    const char* hints[][2] = {
+        { "SDL_JOYSTICK_HIDAPI", "1" },
+        { "SDL_JOYSTICK_HIDAPI_SWITCH", "1" },
+        { "SDL_JOYSTICK_HIDAPI_JOY_CONS", "1" },
+        { "SDL_JOYSTICK_HIDAPI_COMBINE_JOY_CONS", "1" },
+        { "SDL_JOYSTICK_HIDAPI_SWITCH2", "1" }, // Switch 2 controllers, for SDL versions that know them
+        { "SDL_GAMECONTROLLER_USE_BUTTON_LABELS", "1" },
+    };
+    for (const auto& hint : hints) {
+        SDL_SetHintWithPriority(hint[0], hint[1], SDL_HINT_DEFAULT);
+    }
+}
+
 OTRGlobals::OTRGlobals() {
+    RemixSetupSwitchControllers();
     context = Ship::Context::CreateUninitializedInstance("Ship of Harkinian", appShortName, "shipofharkinian.json");
 
     portArchivePath = Ship::Context::LocateFileAcrossAppDirs("soh.o2r");
@@ -321,11 +339,29 @@ OTRGlobals::OTRGlobals() {
                 { Ship::UP, KbScancode::LUS_KB_U },
                 { Ship::DOWN, KbScancode::LUS_KB_J } } },
         }),
+        // Controllers (Xbox, PlayStation, Switch Pro Controller, Joy-Con pairs). SDL names the buttons by their label, so
+        // on Nintendo controllers A is the button labeled A. The right stick is the camera, so the C buttons are on
+        // buttons instead, and X jumps.
         std::unordered_map<CONTROLLERBUTTONS_T, std::unordered_set<SDL_GameControllerButton>>({
+            { BTN_A, { SDL_CONTROLLER_BUTTON_A } },
+            { BTN_B, { SDL_CONTROLLER_BUTTON_B } },
+            { BTN_L, { SDL_CONTROLLER_BUTTON_LEFTSHOULDER } },
+            { BTN_START, { SDL_CONTROLLER_BUTTON_START } },
+            { BTN_DUP, { SDL_CONTROLLER_BUTTON_DPAD_UP } },
+            { BTN_DDOWN, { SDL_CONTROLLER_BUTTON_DPAD_DOWN } },
+            { BTN_DLEFT, { SDL_CONTROLLER_BUTTON_DPAD_LEFT } },
+            { BTN_DRIGHT, { SDL_CONTROLLER_BUTTON_DPAD_RIGHT } },
+            { BTN_CLEFT, { SDL_CONTROLLER_BUTTON_Y } },
+            { BTN_CDOWN, { SDL_CONTROLLER_BUTTON_RIGHTSHOULDER } },
+            { BTN_CRIGHT, { SDL_CONTROLLER_BUTTON_RIGHTSTICK } },
+            { BTN_CUP, { SDL_CONTROLLER_BUTTON_BACK } },
             { BTN_CUSTOM_REMIX_JUMP, { SDL_CONTROLLER_BUTTON_X } },
         }),
         std::unordered_map<Ship::StickIndex, std::vector<std::pair<Ship::Direction, SDL_GameControllerButton>>>(),
-        std::unordered_map<CONTROLLERBUTTONS_T, std::vector<std::pair<SDL_GameControllerAxis, int32_t>>>(),
+        std::unordered_map<CONTROLLERBUTTONS_T, std::vector<std::pair<SDL_GameControllerAxis, int32_t>>>({
+            { BTN_R, { { SDL_CONTROLLER_AXIS_TRIGGERRIGHT, 1 } } },
+            { BTN_Z, { { SDL_CONTROLLER_AXIS_TRIGGERLEFT, 1 } } },
+        }),
         std::unordered_map<Ship::StickIndex,
                            std::vector<std::pair<Ship::Direction, std::pair<SDL_GameControllerAxis, int32_t>>>>());
 
