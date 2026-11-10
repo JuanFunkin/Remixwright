@@ -308,6 +308,12 @@ OTRGlobals::OTRGlobals() {
             { BTN_DDOWN, { KbScancode::LUS_KB_3 } },
             { BTN_DRIGHT, { KbScancode::LUS_KB_4 } },
             { BTN_CUSTOM_REMIX_JUMP, { KbScancode::LUS_KB_V } },
+            // Ocarina notes like the remake (L R A Y X), on the keyboard F G B N M
+            { BTN_CUSTOM_OCARINA_NOTE_D4, { KbScancode::LUS_KB_F } },
+            { BTN_CUSTOM_OCARINA_NOTE_F4, { KbScancode::LUS_KB_G } },
+            { BTN_CUSTOM_OCARINA_NOTE_A4, { KbScancode::LUS_KB_B } },
+            { BTN_CUSTOM_OCARINA_NOTE_B4, { KbScancode::LUS_KB_N } },
+            { BTN_CUSTOM_OCARINA_NOTE_D5, { KbScancode::LUS_KB_M } },
         }),
         std::unordered_map<Ship::StickIndex, std::vector<std::pair<Ship::Direction, KbScancode>>>({
             { Ship::LEFT_STICK,
@@ -323,6 +329,11 @@ OTRGlobals::OTRGlobals() {
         }),
         std::unordered_map<CONTROLLERBUTTONS_T, std::unordered_set<SDL_GameControllerButton>>({
             { BTN_CUSTOM_REMIX_JUMP, { SDL_CONTROLLER_BUTTON_X } },
+            { BTN_CUSTOM_OCARINA_NOTE_D4, { SDL_CONTROLLER_BUTTON_LEFTSHOULDER } },
+            { BTN_CUSTOM_OCARINA_NOTE_F4, { SDL_CONTROLLER_BUTTON_RIGHTSHOULDER } },
+            { BTN_CUSTOM_OCARINA_NOTE_A4, { SDL_CONTROLLER_BUTTON_A } },
+            { BTN_CUSTOM_OCARINA_NOTE_B4, { SDL_CONTROLLER_BUTTON_Y } },
+            { BTN_CUSTOM_OCARINA_NOTE_D5, { SDL_CONTROLLER_BUTTON_X } },
         }),
         std::unordered_map<Ship::StickIndex, std::vector<std::pair<Ship::Direction, SDL_GameControllerButton>>>(),
         std::unordered_map<CONTROLLERBUTTONS_T, std::vector<std::pair<SDL_GameControllerAxis, int32_t>>>(),
