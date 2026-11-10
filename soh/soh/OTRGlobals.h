@@ -30,7 +30,7 @@ struct ExtensionEntry {
 
 extern std::unordered_map<std::string, ExtensionEntry> ExtensionCache;
 
-const std::string appShortName = "soh";
+const std::string appShortName = "remix-of-harkinian";
 
 class Randomizer;
 class SaveStateMgr;
