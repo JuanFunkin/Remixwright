@@ -24,6 +24,9 @@ static int sCandidateFrames = 0;
 static int sSilentFrames = 0;
 static float sLevel = -1.0f;
 static float sVolume = 0.0f;
+static int sStatus = 0;
+static Uint32 sLastSoundTicks = 0;
+static Uint32 sNextOpenTry = 0;
 
 // MIDI numbers of the ocarina notes: D4, F4, A4, B4, D5
 static const float kNoteMidi[5] = { 62.0f, 65.0f, 69.0f, 71.0f, 74.0f };
@@ -44,12 +47,18 @@ static void CloseDevice() {
     sCandidateFrames = sSilentFrames = 0;
     sLevel = -1.0f;
     sVolume = 0.0f;
+    sStatus = 0;
 }
 
 static void OpenDevice() {
     if (sDevice != 0) {
         return;
     }
+    // After a failure, try again every couple of seconds instead of every frame
+    if (SDL_GetTicks() < sNextOpenTry) {
+        return;
+    }
+    sNextOpenTry = SDL_GetTicks() + 2000;
     if (!SDL_WasInit(SDL_INIT_AUDIO) && SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {
         return;
     }
@@ -62,17 +71,21 @@ static void OpenDevice() {
     want.channels = 1;
     want.samples = 1024;
     want.callback = nullptr; // queue mode, read with SDL_DequeueAudio
-    sDevice = SDL_OpenAudioDevice(nullptr, 1, &want, &have, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
+    // No changes allowed: SDL converts whatever the microphone gives into mono float at 44.1 kHz for us
+    sDevice = SDL_OpenAudioDevice(nullptr, 1, &want, &have, 0);
     if (sDevice == 0) {
+        sStatus = 1;
         return;
     }
     if (have.format != AUDIO_F32SYS || have.channels != 1) {
         // Not the format asked for, and nothing here knows how to read another one
         SDL_CloseAudioDevice(sDevice);
         sDevice = 0;
+        sStatus = 1;
         return;
     }
     sSampleRate = have.freq;
+    sStatus = 2;
     SDL_PauseAudioDevice(sDevice, 0);
 }
 
@@ -179,6 +192,7 @@ extern "C" void RemixOcarinaMic_Update(int ocarinaOut) {
 
     OpenDevice();
     if (sDevice == 0) {
+        sStatus = 1;
         return;
     }
 
@@ -204,9 +218,16 @@ extern "C" void RemixOcarinaMic_Update(int ocarinaOut) {
     float rms = static_cast<float>(std::sqrt(sum / sSamples.size()));
     sVolume = std::min(1.0f, rms * 8.0f);
 
+    // Quiet microphones give very small numbers, so the gate is low
+    const float gate = 0.003f;
+    if (rms > gate) {
+        sLastSoundTicks = SDL_GetTicks();
+    }
+    sStatus = (SDL_GetTicks() - sLastSoundTicks < 400 && sLastSoundTicks != 0) ? 3 : 2;
+
     int heardNote = -1;
     sLevel = -1.0f;
-    if (rms > 0.01f) {
+    if (rms > gate) {
         float freq = DetectPitch(sSamples.data(), kWindow, sSampleRate);
         if (freq > 100.0f && freq < 1500.0f) {
             float level = 0.0f;
@@ -238,6 +259,10 @@ extern "C" void RemixOcarinaMic_Update(int ocarinaOut) {
 
 extern "C" int RemixOcarinaMic_IsListening(void) {
     return (sDevice != 0 && Enabled()) ? 1 : 0;
+}
+
+extern "C" int RemixOcarinaMic_GetStatus(void) {
+    return sStatus;
 }
 
 extern "C" int RemixOcarinaMic_GetNote(void) {
