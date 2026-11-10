@@ -69,12 +69,6 @@ int sPrevStickDir = 0;
 bool sPrevLeft = false;
 bool sPrevRight = false;
 
-// Recent pitch levels for the microphone staff, newest last
-constexpr int kTrail = 48;
-float sTrail[kTrail];
-bool sTrailInit = false;
-float sAnimTime = 0.0f;
-
 bool OcarinaOut() {
     if (gPlayState == nullptr) {
         return false;
@@ -351,44 +345,24 @@ void DrawSongbook(ImDrawList* dl, ImVec2 vpPos, ImVec2 vpSize, float unit) {
     }
 }
 
-void DrawMicPanel(ImDrawList* dl, ImVec2 vpPos, ImVec2 vpSize, float unit) {
-    const float w = 250.0f * unit;
-    const float h = 105.0f * unit;
-    ImVec2 p0(vpPos.x + vpSize.x - w - 18.0f * unit, vpPos.y + 18.0f * unit);
-    ImVec2 p1(p0.x + w, p0.y + h);
-    dl->AddRectFilled(p0, p1, IM_COL32(15, 12, 8, 150), 8.0f * unit);
-
-    const bool listening = RemixOcarinaMic_IsListening();
-    const float vol = RemixOcarinaMic_GetVolume();
-    const float level = RemixOcarinaMic_GetPitchLevel();
-    DrawText(dl, 14.0f * unit, ImVec2(p0.x + 10.0f * unit, p0.y + 6.0f * unit), IM_COL32(255, 240, 200, 255),
-             listening ? "Listening..." : "Microphone starting...");
-    ImVec2 m0(p1.x - 70.0f * unit, p0.y + 10.0f * unit);
-    ImVec2 m1(p1.x - 10.0f * unit, p0.y + 17.0f * unit);
-    dl->AddRectFilled(m0, m1, IM_COL32(255, 255, 255, 40), 3.0f * unit);
-    dl->AddRectFilled(m0, ImVec2(m0.x + (m1.x - m0.x) * vol, m1.y), IM_COL32(120, 230, 140, 230), 3.0f * unit);
-
-    const float left = p0.x + 12.0f * unit;
-    const float right = p1.x - 12.0f * unit;
-    const float top = p0.y + 32.0f * unit;
-    const float bottom = p1.y - 12.0f * unit;
-    auto yOf = [&](float lv) { return bottom - (bottom - top) * (lv / 4.0f); };
-    for (int i = 0; i < 5; i++) {
-        float y = yOf(static_cast<float>(i));
-        dl->AddLine(ImVec2(left, y), ImVec2(right, y), IM_COL32(255, 255, 255, 80), 1.0f);
+// A small line of text in the corner: what the microphone is doing
+void DrawMicStatus(ImDrawList* dl, ImVec2 vpPos, ImVec2 vpSize, float unit) {
+    const int status = RemixOcarinaMic_GetStatus();
+    const char* text = "Waiting for audio...";
+    ImU32 color = IM_COL32(255, 255, 255, 235);
+    if (status == 3) {
+        text = "Receiving audio...";
+        color = IM_COL32(150, 240, 160, 255);
+    } else if (status == 1) {
+        text = "Microphone not available";
+        color = IM_COL32(255, 150, 130, 255);
     }
-    for (int i = 0; i < kTrail; i++) {
-        if (sTrail[i] < 0.0f) {
-            continue;
-        }
-        float t = static_cast<float>(i) / (kTrail - 1);
-        float x = left + (right - left) * t;
-        dl->AddCircleFilled(ImVec2(x, yOf(sTrail[i])), (1.5f + 4.0f * t) * unit,
-                            IM_COL32(255, 220, 120, static_cast<int>(40 + 200 * t)), 12);
-    }
-    if (level >= 0.0f) {
-        dl->AddCircle(ImVec2(right, yOf(level)), 7.0f * unit, IM_COL32(255, 255, 255, 230), 14, 1.8f);
-    }
+    const float size = 16.0f * unit;
+    const float w = TextWidth(size, text);
+    ImVec2 p0(vpPos.x + vpSize.x - w - 34.0f * unit, vpPos.y + 14.0f * unit);
+    ImVec2 p1(p0.x + w + 20.0f * unit, p0.y + size + 12.0f * unit);
+    dl->AddRectFilled(p0, p1, IM_COL32(0, 0, 0, 140), 8.0f * unit);
+    dl->AddText(ImGui::GetFont(), size, ImVec2(p0.x + 10.0f * unit, p0.y + 6.0f * unit), color, text);
 }
 
 // Songbook input: Z opens and closes it, left and right (stick or D-pad) move through the songs
@@ -441,20 +415,12 @@ void RemixOcarinaHud_Draw() {
     if (!out) {
         sSongbookOpen = false;
         sPrevZ = false;
-        if (sTrailInit) {
-            std::fill(sTrail, sTrail + kTrail, -1.0f);
-        }
         return;
     }
     if (!CVarGetInteger(CVAR_ENHANCEMENT("RemixOcarinaHud"), 1)) {
         sSongbookOpen = false;
         return;
     }
-    if (!sTrailInit) {
-        std::fill(sTrail, sTrail + kTrail, -1.0f);
-        sTrailInit = true;
-    }
-
     UpdateSongbookInput();
 
     // Drawn on the background list of the game's view: part of the screen, nothing to drag or resize
@@ -462,20 +428,11 @@ void RemixOcarinaHud_Draw() {
     ImDrawList* dl = ImGui::GetBackgroundDrawList(vp);
     const float unit = vp->Size.y / 720.0f;
 
-    sAnimTime += ImGui::GetIO().DeltaTime;
-    if (sAnimTime >= 1.0f / 30.0f) {
-        sAnimTime = 0.0f;
-        for (int i = 0; i < kTrail - 1; i++) {
-            sTrail[i] = sTrail[i + 1];
-        }
-        sTrail[kTrail - 1] = RemixOcarinaMic_GetPitchLevel();
-    }
-
     if (sSongbookOpen) {
         DrawSongbook(dl, vp->Pos, vp->Size, unit);
     }
     if (CVarGetInteger(CVAR_SETTING("RemixOcarinaMic.Enabled"), 0)) {
-        DrawMicPanel(dl, vp->Pos, vp->Size, unit);
+        DrawMicStatus(dl, vp->Pos, vp->Size, unit);
     }
     DrawHints(dl, vp->Pos, vp->Size, unit, sSongbookOpen);
 }
