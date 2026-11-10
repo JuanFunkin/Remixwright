@@ -20,11 +20,11 @@ static void ApplyRemixDefaults() {
         CVarSave();
     }
 
-    // V3: the ocarina is played with L, R, Y, X and A like the remake
-    const char* flag3 = CVAR_GENERAL("RemixDefaultsV3");
-    if (!CVarGetInteger(flag3, 0)) {
-        CVarSetInteger(CVAR_SETTING("CustomOcarina.Enabled"), 1);
-        CVarSetInteger(flag3, 1);
+    // V4: the ocarina keeps its original buttons (A and the C buttons) until the new ones have their textures
+    const char* flag4 = CVAR_GENERAL("RemixDefaultsV4");
+    if (!CVarGetInteger(flag4, 0)) {
+        CVarSetInteger(CVAR_SETTING("CustomOcarina.Enabled"), 0);
+        CVarSetInteger(flag4, 1);
         CVarSave();
     }
 
