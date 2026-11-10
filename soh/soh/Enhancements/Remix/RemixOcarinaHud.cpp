@@ -13,6 +13,7 @@
 #include "soh/cvar_prefixes.h"
 #include "soh/ResourceManagerHelpers.h"
 #include "RemixOcarinaMic.h"
+#include "RemixItemSelector.h"
 
 extern "C" {
 #include "z64.h"
@@ -448,6 +449,7 @@ class RemixOcarinaHudWindow final : public Ship::GuiWindow {
     }
     void Draw() override {
         RemixOcarinaHud_Draw();
+        RemixItemSelector_Draw();
     }
 };
 
