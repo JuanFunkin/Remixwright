@@ -13,6 +13,7 @@
 #include "soh/ResourceManagerHelpers.h"
 #include "soh/SaveManager.h"
 #include "soh/Enhancements/Remix/RemixFileSelect.h"
+#include "soh/Enhancements/Remix/RemixItemSelector.h"
 #include "soh/framebuffer_effects.h"
 
 #include <time.h>
@@ -697,6 +698,11 @@ void Play_Update(PlayState* play) {
     gSegments[4] = VIRTUAL_TO_PHYSICAL(play->objectCtx.status[play->objectCtx.mainKeepIndex].segment);
     gSegments[5] = VIRTUAL_TO_PHYSICAL(play->objectCtx.status[play->objectCtx.subKeepIndex].segment);
     gSegments[2] = VIRTUAL_TO_PHYSICAL(play->sceneSegment);
+
+    // Remix of Harkinian: while the item selector is open the game does not advance
+    if (RemixItemSelector_Update(play)) {
+        return;
+    }
 
     if (FrameAdvance_Update(&play->frameAdvCtx, &input[1])) {
         if ((play->transitionMode == TRANS_MODE_OFF) && (play->transitionTrigger != TRANS_TRIGGER_OFF)) {
