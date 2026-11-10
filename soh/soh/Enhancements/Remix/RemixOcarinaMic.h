@@ -16,6 +16,9 @@ void RemixOcarinaMic_Update(int ocarinaOut);
 // 1 when the option is on and the microphone is open and listening
 int RemixOcarinaMic_IsListening(void);
 
+// 0 = off, 1 = the microphone could not be opened, 2 = open but nothing is heard, 3 = sound is coming in
+int RemixOcarinaMic_GetStatus(void);
+
 // The note being sung: 0 = D4 (A), 1 = F4 (C-Down), 2 = A4 (C-Right), 3 = B4 (C-Left), 4 = D5 (C-Up). -1 = none
 int RemixOcarinaMic_GetNote(void);
 
