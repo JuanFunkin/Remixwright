@@ -69,6 +69,9 @@ bool sPrevZ = false;
 int sPrevStickDir = 0;
 bool sPrevLeft = false;
 bool sPrevRight = false;
+bool sPrevA = false;
+double sDemoStart = -1.0; // when "Listen to the melody" began, -1 when idle
+constexpr double kDemoNoteTime = 0.55;
 
 bool OcarinaOut() {
     if (gPlayState == nullptr) {
@@ -190,7 +193,7 @@ void DrawHints(ImDrawList* dl, ImVec2 vpPos, ImVec2 vpSize, float unit, bool son
         const char* chips[5];
         int chipCount;
     };
-    Hint hints[3];
+    Hint hints[4];
     int n = 0;
     if (!songbook) {
         hints[n++] = { "Check songbook", { "ZL" }, 1 };
@@ -198,6 +201,9 @@ void DrawHints(ImDrawList* dl, ImVec2 vpPos, ImVec2 vpSize, float unit, bool son
         hints[n++] = { "Cancel", { "B" }, 1 };
     } else {
         hints[n++] = { "Choose a song", { "<", ">" }, 2 };
+        if (Known(kSongs[sSelected])) {
+            hints[n++] = { "Listen to the melody", { "A" }, 1 };
+        }
         hints[n++] = { "Close the songbook", { "ZL" }, 1 };
         hints[n++] = { "Cancel", { "B" }, 1 };
     }
@@ -329,8 +335,21 @@ void DrawSongbook(ImDrawList* dl, ImVec2 vpPos, ImVec2 vpSize, float unit) {
             // Low notes sit on the bottom line, high ones on the top line
             float y = staffTop + lineGap * (4 - btn);
             float x = staffL + step * (i + 0.5f);
-            dl->AddCircleFilled(ImVec2(x, y), 13.0f * unit, IM_COL32(35, 30, 28, 255), 24);
-            DrawNoteGlyph(dl, ImVec2(x, y), 9.0f * unit, btn);
+            // While the melody is being shown, the current note lights up and pops
+            float pop = 1.0f;
+            bool lit = false;
+            if (sDemoStart >= 0.0) {
+                const double t = (ImGui::GetTime() - sDemoStart) / kDemoNoteTime;
+                if (static_cast<int>(t) == i) {
+                    lit = true;
+                    pop = 1.0f + 0.35f * static_cast<float>(1.0 - (t - i));
+                }
+            }
+            if (lit) {
+                dl->AddCircleFilled(ImVec2(x, y), 20.0f * unit * pop, IM_COL32(255, 235, 140, 150), 24);
+            }
+            dl->AddCircleFilled(ImVec2(x, y), 13.0f * unit * pop, lit ? IM_COL32(70, 55, 30, 255) : IM_COL32(35, 30, 28, 255), 24);
+            DrawNoteGlyph(dl, ImVec2(x, y), 9.0f * unit * pop, btn);
         }
     } else {
         const char* t = "You have not learned this song yet.";
@@ -385,7 +404,21 @@ void UpdateSongbookInput() {
     sPrevZ = z;
 
     if (!sSongbookOpen) {
+        sDemoStart = -1.0;
+        sPrevA = false;
         return;
+    }
+    // A: listen to the melody of the selected song
+    const bool a = (in.cur.button & BTN_A) != 0;
+    if (a && !sPrevA && Known(kSongs[sSelected])) {
+        sDemoStart = ImGui::GetTime();
+    }
+    sPrevA = a;
+    if (sDemoStart >= 0.0) {
+        const int notes = gOcarinaSongButtons[kSongs[sSelected].songId].numButtons;
+        if ((ImGui::GetTime() - sDemoStart) / kDemoNoteTime >= notes) {
+            sDemoStart = -1.0;
+        }
     }
     const bool left = (in.cur.button & BTN_DLEFT) != 0;
     const bool right = (in.cur.button & BTN_DRIGHT) != 0;
@@ -405,6 +438,7 @@ void UpdateSongbookInput() {
     sPrevRight = right;
     if (move != 0) {
         sSelected = (sSelected + move + kSongCount) % kSongCount;
+        sDemoStart = -1.0;
     }
 }
 
