@@ -64,8 +64,12 @@
 
 #ifdef __APPLE__
 #include <SDL_scancode.h>
+#include <SDL_hints.h>
+#include <SDL_gamecontroller.h>
 #else
 #include <SDL2/SDL_scancode.h>
+#include <SDL2/SDL_hints.h>
+#include <SDL2/SDL_gamecontroller.h>
 #endif
 
 #ifdef __SWITCH__
