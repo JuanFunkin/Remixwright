@@ -84,7 +84,7 @@ bool Known(const SongEntry& s) {
 
 // A custom texture, if the project ships one with this name. Otherwise nullptr and a drawn version is used.
 ImTextureID CustomTexture(const char* name) {
-    auto gui = std::dynamic_pointer_cast<Fast::Fast3dGui>(Ship::Context::GetInstance()->GetWindow()->GetGui());
+    auto gui = std::dynamic_pointer_cast<Fast::Fast3dGui>(Ship::Context::GetRawInstance()->GetWindow()->GetGui());
     if (gui == nullptr) {
         return nullptr;
     }
