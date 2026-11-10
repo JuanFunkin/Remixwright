@@ -299,7 +299,7 @@ static void RemixSetupSwitchControllers() {
 
 OTRGlobals::OTRGlobals() {
     RemixSetupSwitchControllers();
-    context = Ship::Context::CreateUninitializedInstance("Ship of Harkinian", appShortName, "shipofharkinian.json");
+    context = Ship::Context::CreateUninitializedInstance("Remix of Harkinian", appShortName, "remixofharkinian.json");
 
     portArchivePath = Ship::Context::LocateFileAcrossAppDirs("soh.o2r");
     OTRVersion portArchiveVersion = DetectOTRVersion("soh.o2r", false);
@@ -594,12 +594,12 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
                     msg = "\x1b[4;2HPlease re-extract it from the download.\n"
                           "\x1b[6;2HPress the Home button to exit...";
 #elif defined(__WIIU__)
-                    msg = "Please extract the soh.o2r from the Ship of Harkinian download\nto your folder.\n\nPress "
+                    msg = "Please extract the soh.o2r from the Remix of Harkinian download\nto your folder.\n\nPress "
                           "and hold the power\n"
                           "button to shutdown...";
 #else
                     msg =
-                        "Please extract the soh.o2r from the Ship of Harkinian download to your folder.\n\nExiting...";
+                        "Please extract the soh.o2r from the Remix of Harkinian download to your folder.\n\nExiting...";
 #endif
                     std::string title =
                         !std::filesystem::exists(portArchivePath) ? "Missing soh.o2r" : "soh.o2r is outdated";
@@ -683,7 +683,7 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
 #if !defined(__SWITCH__) && !defined(__WIIU__)
                 if (args.empty()) {
                     SohGui::RegisterPopup(
-                        "Run Ship of Harkinian", "All files have been processed. Run SoH?", "Yes", "No",
+                        "Run Remix of Harkinian", "All files have been processed. Run SoH?", "Yes", "No",
                         [&]() {
                             if (!std::filesystem::exists(Ship::Context::GetAppDirectoryPath(appShortName) +
                                                          "/oot.o2r") &&
@@ -974,7 +974,7 @@ void OTRGlobals::Initialize() {
     // populated here rather than in Menu::InitElement (where the window backends are handled).
     SohGui::GetSohMenu()->UpdateAudioBackendObjects();
 
-    SPDLOG_INFO("Starting Ship of Harkinian version {} (Branch: {} | Commit: {})", (char*)gBuildVersion,
+    SPDLOG_INFO("Starting Remix of Harkinian version {} (Branch: {} | Commit: {})", (char*)gBuildVersion,
                 (char*)gGitBranch, (char*)gGitCommitHash);
 
     auto loader = context->GetResourceManager()->GetResourceLoader();
@@ -1604,14 +1604,14 @@ bool VerifyArchiveVersion(OTRVersion version) {
 }
 
 #ifdef __linux__
-// When run as an AppImage, keep user data in ~/.local/share/soh instead of the launch folder.
+// When run as an AppImage, keep user data in ~/.local/share/remix-of-harkinian instead of the launch folder.
 // Keep using the launch folder if it already has data from older versions.
 static void SetAppImageHome() {
     if (getenv("APPIMAGE") == nullptr || getenv("SHIP_HOME") != nullptr) {
         return;
     }
 
-    for (const char* file : { "shipofharkinian.json", "oot.o2r", "oot-mq.o2r" }) {
+    for (const char* file : { "remixofharkinian.json", "oot.o2r", "oot-mq.o2r" }) {
         if (std::filesystem::exists(file)) {
             return;
         }
