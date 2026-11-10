@@ -36,17 +36,6 @@ extern "C" int RemixOcarinaCamera_Begin(PlayState* play, Player* player) {
     }
 
     sWasManual = play->manualCamera;
-    if (play->manualCamera) {
-        sSavedX = play->camX;
-        sSavedY = play->camY;
-    } else {
-        // The game's own camera does not turn back by itself while Link stands still, so remember where it looks
-        Camera* camera = Play_GetCamera(play, CAM_ID_MAIN);
-        VecSph sph;
-        OLib_Vec3fDiffToVecSphGeo(&sph, &camera->at, &camera->eye);
-        sSavedX = sph.yaw;
-        sSavedY = sph.pitch;
-    }
     sScene = play->sceneNum;
     sActive = true;
     return 1;
@@ -72,26 +61,33 @@ static void OnFrameUpdate() {
         return;
     }
 
-    // The camera was never moved by hand, so there is nothing to bring back
+    // The default camera sits behind Link, a little above. The game's own camera never turns back there by itself
+    // while he stands still, so take it there ourselves and give it back to the game once it arrives.
     if (!gPlayState->manualCamera) {
-        sActive = false;
-        return;
+        // Start the glide from wherever the game's camera is looking right now
+        Camera* camera = Play_GetCamera(gPlayState, CAM_ID_MAIN);
+        VecSph sph;
+        OLib_Vec3fDiffToVecSphGeo(&sph, &camera->at, &camera->eye);
+        gPlayState->manualCamera = true;
+        gPlayState->camX = sph.yaw;
+        gPlayState->camY = sph.pitch;
     }
 
-    f32 dx = static_cast<f32>(static_cast<s16>(static_cast<s16>(sSavedX) - static_cast<s16>(gPlayState->camX)));
-    f32 dy = sSavedY - gPlayState->camY;
+    const s16 targetYaw = static_cast<s16>(player->actor.shape.rot.y + 0x8000);
+    const f32 targetPitch = 0x0A00;
+
+    f32 dx = static_cast<f32>(static_cast<s16>(targetYaw - static_cast<s16>(gPlayState->camX)));
+    f32 dy = targetPitch - gPlayState->camY;
     if (std::fabs(dx) < 256.0f && std::fabs(dy) < 256.0f) {
-        gPlayState->camX = sSavedX;
-        gPlayState->camY = sSavedY;
-        // Back where it was: if it was following Link on its own before, hand it back to the game
-        if (!sWasManual) {
-            gPlayState->manualCamera = false;
-        }
+        gPlayState->camX = targetYaw;
+        gPlayState->camY = targetPitch;
+        // Arrived: from here the game's own camera follows Link again
+        gPlayState->manualCamera = false;
         sActive = false;
         return;
     }
-    gPlayState->camX += dx * 0.25f;
-    gPlayState->camY += dy * 0.25f;
+    gPlayState->camX = static_cast<s16>(gPlayState->camX + static_cast<s16>(dx * 0.2f));
+    gPlayState->camY += dy * 0.2f;
 }
 
 static void RegisterRemixOcarinaCamera() {
