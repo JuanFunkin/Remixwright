@@ -947,13 +947,6 @@ void SohMenu::AddMenuEnhancements() {
         .CVar(CVAR_ENHANCEMENT("RemixOcarinaHud"))
         .Options(CheckboxOptions().DefaultValue(true).Tooltip(
             "Shows the songs you know with their buttons, and the button of each note, while the Ocarina is out."));
-    AddWidget(path, "Play Ocarina with Microphone", WIDGET_CVAR_CHECKBOX)
-        .CVar(CVAR_SETTING("RemixOcarinaMic.Enabled"))
-        .Options(CheckboxOptions().Tooltip(
-            "Lets you hum, whistle or play the tune into the microphone to play the Ocarina. The pitch you sing is "
-            "turned into the closest of the five notes, in any octave.\n\n"
-            "The microphone is only used while the Ocarina is out, and is never recorded or saved. Turning this "
-            "option on is the permission to use it."));
     AddWidget(path, "Time Travel with Song of Time", WIDGET_CVAR_COMBOBOX)
         .CVar(CVAR_ENHANCEMENT("TimeTravel"))
         .Options(ComboboxOptions()
