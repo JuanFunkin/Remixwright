@@ -47,6 +47,21 @@ static void ApplyRemixDefaults() {
         CVarSave();
     }
 
+    // V7: D-pad item buttons under the hearts, the C buttons are gone from the HUD (the items live on the D-pad and
+    // in the item selector) and the Ocarina is played with A, Y, X, L, R
+    const char* flag7 = CVAR_GENERAL("RemixDefaultsV7");
+    if (!CVarGetInteger(flag7, 0)) {
+        CVarSetInteger(CVAR_COSMETIC("HUD.Dpad.PosType"), 1); // ANCHOR_LEFT
+        CVarSetInteger(CVAR_COSMETIC("HUD.Dpad.PosX"), 30);
+        CVarSetInteger(CVAR_COSMETIC("HUD.Dpad.PosY"), 82);
+        CVarSetInteger(CVAR_COSMETIC("HUD.CLeftButton.PosType"), 4); // Hidden
+        CVarSetInteger(CVAR_COSMETIC("HUD.CDownButton.PosType"), 4);
+        CVarSetInteger(CVAR_COSMETIC("HUD.CRightButton.PosType"), 4);
+        CVarSetInteger(CVAR_SETTING("CustomOcarina.Enabled"), 1);
+        CVarSetInteger(flag7, 1);
+        CVarSave();
+    }
+
     if (CVarGetInteger(flag, 0)) {
         return;
     }
