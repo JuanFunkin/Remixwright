@@ -1495,11 +1495,14 @@ s32 Camera_Free(Camera* camera) {
 
     playerHeight = Player_GetHeight(camera->player);
 
-    // Remix of Harkinian: while aiming from behind Link, look over his right shoulder so he does not cover the aim.
-    if (RemixThirdPersonAim_IsActive()) {
-        f32 shoulderYaw = BINANG_TO_RAD((s16)(camera->play->camX + 0x4000));
-        at->x += sinf(shoulderYaw) * 28.0f;
-        at->z += cosf(shoulderYaw) * 28.0f;
+    // Remix of Harkinian: while aiming, the camera sits to the left of Link and a bit closer. The collision check
+    // still starts from Link himself, so the shifted camera cannot go through walls.
+    Vec3f remixLinkAt = *at;
+    const s32 remixAiming = RemixThirdPersonAim_IsActive();
+    if (remixAiming) {
+        f32 shoulderYaw = BINANG_TO_RAD((s16)(camera->play->camX - 0x4000));
+        at->x += sinf(shoulderYaw) * 34.0f;
+        at->z += cosf(shoulderYaw) * 34.0f;
     }
 
     if (RELOAD_PARAMS) {
@@ -1566,14 +1569,14 @@ s32 Camera_Free(Camera* camera) {
         camera->dist = Camera_LERPCeilF(distTarget, camera->dist, speedScaler / (distDiff + speedScaler), 0.0f);
     OLib_Vec3fDiffToVecSphGeo(&spA8, at, eyeNext);
 
-    spA8.r = camera->dist;
+    spA8.r = remixAiming ? camera->dist * 0.68f : camera->dist;
     spA8.yaw = camera->play->camX;
     spA8.pitch = camera->play->camY;
 
     Camera_Vec3fVecSphGeoAdd(eyeNext, at, &spA8);
     if (camera->status == CAM_STAT_ACTIVE) {
         sp6C.pos = *eyeNext;
-        Camera_BGCheckInfo(camera, at, &sp6C);
+        Camera_BGCheckInfo(camera, remixAiming ? &remixLinkAt : at, &sp6C);
         *eye = sp6C.pos;
     }
 
