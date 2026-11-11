@@ -27,6 +27,11 @@ static float sVolume = 0.0f;
 static int sStatus = 0;
 static Uint32 sLastSoundTicks = 0;
 static Uint32 sNextOpenTry = 0;
+static int sOpenedDevice = 0; // which CVar value the open device belongs to
+
+static int WantedDevice() {
+    return CVarGetInteger(CVAR_SETTING("RemixOcarinaMic.Device"), 0);
+}
 
 // MIDI numbers of the ocarina notes: D4, F4, A4, B4, D5
 static const float kNoteMidi[5] = { 62.0f, 65.0f, 69.0f, 71.0f, 74.0f };
@@ -72,7 +77,13 @@ static void OpenDevice() {
     want.samples = 1024;
     want.callback = nullptr; // queue mode, read with SDL_DequeueAudio
     // No changes allowed: SDL converts whatever the microphone gives into mono float at 44.1 kHz for us
-    sDevice = SDL_OpenAudioDevice(nullptr, 1, &want, &have, 0);
+    const int wanted = WantedDevice();
+    const char* deviceName = nullptr;
+    if (wanted > 0 && wanted <= SDL_GetNumAudioDevices(1)) {
+        deviceName = SDL_GetAudioDeviceName(wanted - 1, 1);
+    }
+    sDevice = SDL_OpenAudioDevice(deviceName, 1, &want, &have, 0);
+    sOpenedDevice = wanted;
     if (sDevice == 0) {
         sStatus = 1;
         return;
@@ -190,6 +201,11 @@ extern "C" void RemixOcarinaMic_Update(int ocarinaOut) {
         return;
     }
 
+    // The player picked another microphone: close this one, the next call opens the new one
+    if (sDevice != 0 && sOpenedDevice != WantedDevice()) {
+        CloseDevice();
+        sNextOpenTry = 0;
+    }
     OpenDevice();
     if (sDevice == 0) {
         sStatus = 1;
@@ -275,4 +291,16 @@ extern "C" float RemixOcarinaMic_GetPitchLevel(void) {
 
 extern "C" float RemixOcarinaMic_GetVolume(void) {
     return sVolume;
+}
+
+extern "C" int RemixOcarinaMic_GetDeviceCount(void) {
+    if (!SDL_WasInit(SDL_INIT_AUDIO) && SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {
+        return 0;
+    }
+    return std::max(0, SDL_GetNumAudioDevices(1));
+}
+
+extern "C" const char* RemixOcarinaMic_GetDeviceName(int index) {
+    const char* name = SDL_GetAudioDeviceName(index, 1);
+    return name != nullptr ? name : "Unknown microphone";
 }
