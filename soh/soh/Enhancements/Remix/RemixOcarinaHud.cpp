@@ -155,10 +155,16 @@ void DrawNoteGlyph(ImDrawList* dl, ImVec2 c, float r, int button) {
             static const char* const paths[] = { "", "__OTR__textures/parameter_static/gEmptyCDownArrowTex",
                                                  "__OTR__textures/parameter_static/gEmptyCRightArrowTex",
                                                  "__OTR__textures/parameter_static/gEmptyCLeftArrowTex",
-                                                 "__OTR__textures/parameter_static/gEmptyCUpArrowTex" };
+                                                 "__OTR__textures/parameter_static/gEmptyCLeftArrowTex" };
             ImTextureID arrow = GameTexture(names[button], paths[button], ImVec4(1.0f, 0.8f, 0.24f, 1.0f));
             if (arrow != nullptr) {
-                dl->AddImage(arrow, a, b);
+                if (button == 4) {
+                    // The game has no up arrow: the left one turned a quarter
+                    dl->AddImageQuad(arrow, a, ImVec2(b.x, a.y), b, ImVec2(a.x, b.y), ImVec2(0, 1), ImVec2(0, 0),
+                                     ImVec2(1, 0), ImVec2(1, 1));
+                } else {
+                    dl->AddImage(arrow, a, b);
+                }
                 return;
             }
         }
