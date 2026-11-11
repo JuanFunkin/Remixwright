@@ -8726,11 +8726,6 @@ void Player_Action_8084193C(Player* this, PlayState* play) {
         }
 
         speedTarget *= 0.9f;
-        // Remix: hold A while moving to sprint (same run animation, played faster through linearVelocity).
-        if (CHECK_BTN_ALL(sControlInput->cur.button, BTN_A) && !Player_FriendlyLockOnOrParallel(this) &&
-            (sFloorType != 7) && !(this->stateFlags1 & PLAYER_STATE1_IN_WATER)) {
-            speedTarget *= 1.45f;
-        }
         Math_AsymStepToF(&this->linearVelocity, speedTarget, 2.0f, 3.0f);
         Math_ScaledStepToS(&this->yaw, yawTarget, temp3 * 0.1f);
     }
@@ -8892,6 +8887,12 @@ void Player_Action_80842180(Player* this, PlayState* play) {
 
         if (!func_8083C484(this, &speedTarget, &yawTarget)) {
             if (GameInteractor_Should(VB_PLAYER_MODIFY_RUN_SPEED, true, this, &speedTarget, &yawTarget)) {
+                // Remix: hold A while running freely to sprint. The run animation follows linearVelocity, so it
+                // plays faster by itself.
+                if (CHECK_BTN_ALL(sControlInput->cur.button, BTN_A) && (speedTarget > 0.0f) && (sFloorType != 7) &&
+                    !(this->stateFlags1 & PLAYER_STATE1_IN_WATER)) {
+                    speedTarget *= 1.5f;
+                }
                 func_8083DF68(this, speedTarget, yawTarget);
                 func_8083DDC8(this, play);
             };
@@ -12102,7 +12103,7 @@ void Player_UpdateCommon(Player* this, PlayState* play, Input* input) {
 
         // Remix: holding A while running freely is the sprint. The press of A must not turn into a roll or a
         // jump attack, so it is taken away unless there is something to interact with right here.
-        if (this->actionFunc == Player_Action_8084193C && !Player_FriendlyLockOnOrParallel(this) &&
+        if ((this->actionFunc == Player_Action_80842180) && !Player_FriendlyLockOnOrParallel(this) &&
             this->interactRangeActor == NULL && (play->msgCtx.msgMode == 0) &&
             CHECK_BTN_ALL(input->cur.button, BTN_A) && !(this->stateFlags1 & PLAYER_STATE1_IN_WATER)) {
             input->press.button &= ~BTN_A;
@@ -12110,8 +12111,9 @@ void Player_UpdateCommon(Player* this, PlayState* play, Input* input) {
 
         // Remix: jump with the X button while idle or running on the ground.
         if (CHECK_BTN_ALL(input->press.button, BTN_CUSTOM_REMIX_JUMP) &&
-            ((this->actionFunc == Player_Action_Idle) || (this->actionFunc == Player_Action_8084193C) ||
-             (this->actionFunc == Player_Action_808407CC) || (this->actionFunc == Player_Action_80840450)) &&
+            ((this->actionFunc == Player_Action_Idle) || (this->actionFunc == Player_Action_80842180) ||
+             (this->actionFunc == Player_Action_8084227C) || (this->actionFunc == Player_Action_808407CC) ||
+             (this->actionFunc == Player_Action_8084193C) || (this->actionFunc == Player_Action_80840450)) &&
             (this->actor.bgCheckFlags & BGCHECKFLAG_GROUND) && (this->actor.category == ACTORCAT_PLAYER) &&
             !(this->stateFlags1 & (PLAYER_STATE1_IN_WATER | PLAYER_STATE1_IN_CUTSCENE | PLAYER_STATE1_CARRYING_ACTOR |
                                    PLAYER_STATE1_ON_HORSE | PLAYER_STATE1_CLIMBING_LEDGE)) &&
