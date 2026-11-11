@@ -62,15 +62,19 @@ static void OnFrameUpdate() {
     }
 
     // The default camera sits behind Link, a little above. The game's own camera never turns back there by itself
-    // while he stands still, so take it there ourselves and give it back to the game once it arrives.
+    // while he stands still, so take it there quickly and give it back to the game once it arrives.
+    Camera* camera = Play_GetCamera(gPlayState, CAM_ID_MAIN);
     if (!gPlayState->manualCamera) {
-        // Start the glide from wherever the game's camera is looking right now
-        Camera* camera = Play_GetCamera(gPlayState, CAM_ID_MAIN);
+        // Start from wherever the game's camera is looking right now
         VecSph sph;
         OLib_Vec3fDiffToVecSphGeo(&sph, &camera->at, &camera->eye);
         gPlayState->manualCamera = true;
         gPlayState->camX = sph.yaw;
         gPlayState->camY = sph.pitch;
+    }
+    // Whatever the song did (it may have put the camera in another mode), the normal follow mode is the target
+    if (camera->mode != CAM_MODE_NORMAL) {
+        Camera_RequestMode(camera, CAM_MODE_NORMAL);
     }
 
     const s16 targetYaw = static_cast<s16>(player->actor.shape.rot.y + 0x8000);
@@ -78,7 +82,7 @@ static void OnFrameUpdate() {
 
     f32 dx = static_cast<f32>(static_cast<s16>(targetYaw - static_cast<s16>(gPlayState->camX)));
     f32 dy = targetPitch - gPlayState->camY;
-    if (std::fabs(dx) < 256.0f && std::fabs(dy) < 256.0f) {
+    if (std::fabs(dx) < 600.0f && std::fabs(dy) < 600.0f) {
         gPlayState->camX = targetYaw;
         gPlayState->camY = targetPitch;
         // Arrived: from here the game's own camera follows Link again
@@ -86,8 +90,8 @@ static void OnFrameUpdate() {
         sActive = false;
         return;
     }
-    gPlayState->camX = static_cast<s16>(gPlayState->camX + static_cast<s16>(dx * 0.2f));
-    gPlayState->camY += dy * 0.2f;
+    gPlayState->camX = static_cast<s16>(gPlayState->camX + static_cast<s16>(dx * 0.35f));
+    gPlayState->camY += dy * 0.35f;
 }
 
 static void RegisterRemixOcarinaCamera() {
