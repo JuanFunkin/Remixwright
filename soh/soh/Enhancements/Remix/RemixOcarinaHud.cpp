@@ -382,23 +382,41 @@ void DrawSongbook(ImDrawList* dl, ImVec2 vpPos, ImVec2 vpSize, float unit) {
 }
 
 // A small line of text in the corner: what the microphone is doing
+// A small microphone, drawn with shapes: capsule, holder and stand
+void DrawMicIcon(ImDrawList* dl, ImVec2 c, float h, ImU32 color) {
+    const float w = h * 0.34f;
+    dl->AddRectFilled(ImVec2(c.x - w * 0.5f, c.y - h * 0.5f), ImVec2(c.x + w * 0.5f, c.y + h * 0.1f), color, w * 0.5f);
+    const float r = w * 0.95f;
+    dl->PathArcTo(ImVec2(c.x, c.y - h * 0.02f), r, 0.0f, 3.14159f, 16);
+    dl->PathStroke(color, 0, h * 0.075f);
+    dl->AddLine(ImVec2(c.x, c.y + r - h * 0.02f), ImVec2(c.x, c.y + h * 0.5f), color, h * 0.075f);
+    dl->AddLine(ImVec2(c.x - w * 0.6f, c.y + h * 0.5f), ImVec2(c.x + w * 0.6f, c.y + h * 0.5f), color, h * 0.075f);
+}
+
+// Top and middle of the screen: the microphone icon and what it hears. Orange = waiting, green = receiving.
 void DrawMicStatus(ImDrawList* dl, ImVec2 vpPos, ImVec2 vpSize, float unit) {
     const int status = RemixOcarinaMic_GetStatus();
     const char* text = "Waiting for audio...";
-    ImU32 color = IM_COL32(255, 255, 255, 235);
+    ImU32 color = IM_COL32(255, 165, 50, 255);
     if (status == 3) {
         text = "Receiving audio...";
-        color = IM_COL32(150, 240, 160, 255);
+        color = IM_COL32(110, 230, 120, 255);
     } else if (status == 1) {
         text = "Microphone not available";
-        color = IM_COL32(255, 150, 130, 255);
+        color = IM_COL32(255, 110, 100, 255);
     }
-    const float size = 16.0f * unit;
+    const float size = 26.0f * unit;
+    const float iconH = 34.0f * unit;
     const float w = TextWidth(size, text);
-    ImVec2 p0(vpPos.x + vpSize.x - w - 34.0f * unit, vpPos.y + 14.0f * unit);
-    ImVec2 p1(p0.x + w + 20.0f * unit, p0.y + size + 12.0f * unit);
-    dl->AddRectFilled(p0, p1, IM_COL32(0, 0, 0, 140), 8.0f * unit);
-    dl->AddText(ImGui::GetFont(), size, ImVec2(p0.x + 10.0f * unit, p0.y + 6.0f * unit), color, text);
+    const float total = iconH * 0.7f + 12.0f * unit + w;
+    const float x0 = vpPos.x + vpSize.x * 0.5f - total * 0.5f;
+    const float y = vpPos.y + 38.0f * unit;
+    dl->AddRectFilled(ImVec2(x0 - 18.0f * unit, y - 24.0f * unit), ImVec2(x0 + total + 18.0f * unit, y + 24.0f * unit),
+                      IM_COL32(0, 0, 0, 150), 14.0f * unit);
+    DrawMicIcon(dl, ImVec2(x0 + iconH * 0.35f, y), iconH, color);
+    const ImVec2 tp(x0 + iconH * 0.7f + 12.0f * unit, y - size * 0.5f);
+    dl->AddText(ImGui::GetFont(), size, ImVec2(tp.x + 1.5f, tp.y + 1.5f), IM_COL32(0, 0, 0, 200), text);
+    dl->AddText(ImGui::GetFont(), size, tp, color, text);
 }
 
 // Songbook input: Z opens and closes it, left and right (stick or D-pad) move through the songs
