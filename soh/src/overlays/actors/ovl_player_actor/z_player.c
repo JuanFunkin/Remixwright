@@ -12854,6 +12854,24 @@ void Player_Action_8084B1D8(Player* this, PlayState* play) {
     if (GameInteractor_Should(VB_PLAYER_FIRST_PERSON_ALIGN_YAW, true, this)) {
         this->yaw = this->actor.shape.rot.y;
     }
+
+    // Remix of Harkinian: while aiming from behind Link, the legs walk with the movement. The upper body keeps its
+    // aiming pose, only the lower body takes the walk cycle.
+    if ((this->actionFunc == Player_Action_8084B1D8) && RemixThirdPersonAim_IsActive() &&
+        !(this->stateFlags1 & PLAYER_STATE1_IN_WATER)) {
+        LinkAnimationHeader* runAnim = GET_PLAYER_ANIM(PLAYER_ANIMGROUP_run, this->modelAnimType);
+        s32 walking = (this->skelAnime.animation == runAnim);
+
+        if (this->linearVelocity > 0.5f) {
+            if (!walking) {
+                Player_AnimChangeLoopMorph(play, this, runAnim);
+                this->unk_864 = this->unk_868 = 0.0f;
+            }
+            func_80841EE4(this, play);
+        } else if (walking) {
+            Player_AnimPlayOnce(play, this, Player_GetIdleAnim(this));
+        }
+    }
 }
 
 s32 func_8084B3CC(PlayState* play, Player* this) {
