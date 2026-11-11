@@ -21,7 +21,6 @@ extern "C" {
 #include "variables.h"
 #include "seqcmd.h"
 #include "sequence.h"
-#include "src/overlays/actors/ovl_player_actor/z_player.h"
 extern SaveContext gSaveContext;
 void Player_UseItem(PlayState* play, Player* this, s32 item);
 }
