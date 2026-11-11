@@ -1,6 +1,7 @@
 #include "RemixFileSelect.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -745,7 +746,16 @@ void DrawSetup(ImDrawList* dl, ImFont* font, ImGuiViewport* vp, float unit, ImVe
 
 } // namespace
 
+// The title screen calls these every update while it is alive. If it stops (the game was reset, or went to another
+// state) the menu and the logo must not stay over whatever comes next.
+static std::chrono::steady_clock::time_point sLastBeat = std::chrono::steady_clock::now();
+
+static void Beat() {
+    sLastBeat = std::chrono::steady_clock::now();
+}
+
 void RemixFileSelect_SetVisible(int visible) {
+    Beat();
     if (!visible && sState.visible) {
         sState.screen = Screen::Main;
     }
@@ -765,6 +775,7 @@ int RemixFileSelect_PendingAction(void) {
 }
 
 void RemixFileSelect_SetLogoAlpha(int alpha) {
+    Beat();
     sState.logoAlpha = std::clamp(alpha, 0, 255);
 }
 
@@ -1021,6 +1032,13 @@ int RemixFileSelect_PollAction(int* slot, int* kind) {
 
 // Drawn every rendered frame by the GUI. The window is registered in SohGui.cpp.
 void RemixFileSelect_Draw() {
+    if ((sState.visible || sState.logoAlpha > 0) &&
+        std::chrono::steady_clock::now() - sLastBeat > std::chrono::milliseconds(600)) {
+        sState.visible = false;
+        sState.logoAlpha = 0;
+        sState.screen = Screen::Main;
+        sState.pendingAction = REMIX_FS_NONE;
+    }
     if ((!sState.visible && sState.logoAlpha <= 0 && sState.fadeAlpha <= 0) || SaveManager::Instance == nullptr) {
         return;
     }
