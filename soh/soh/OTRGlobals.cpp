@@ -329,7 +329,14 @@ OTRGlobals::OTRGlobals() {
             { BTN_DLEFT, { KbScancode::LUS_KB_2 } },
             { BTN_DDOWN, { KbScancode::LUS_KB_3 } },
             { BTN_DRIGHT, { KbScancode::LUS_KB_4 } },
-            { BTN_CUSTOM_REMIX_JUMP, { KbScancode::LUS_KB_V } },
+            { BTN_CUSTOM_REMIX_X, { KbScancode::LUS_KB_V } },
+            { BTN_CUSTOM_REMIX_Y, { KbScancode::LUS_KB_F } },
+            // The Ocarina is played with A, Y, X, L, R (like the 3DS version)
+            { BTN_CUSTOM_OCARINA_NOTE_D4, { KbScancode::LUS_KB_X } },
+            { BTN_CUSTOM_OCARINA_NOTE_F4, { KbScancode::LUS_KB_F } },
+            { BTN_CUSTOM_OCARINA_NOTE_A4, { KbScancode::LUS_KB_V } },
+            { BTN_CUSTOM_OCARINA_NOTE_B4, { KbScancode::LUS_KB_E } },
+            { BTN_CUSTOM_OCARINA_NOTE_D5, { KbScancode::LUS_KB_R } },
         }),
         std::unordered_map<Ship::StickIndex, std::vector<std::pair<Ship::Direction, KbScancode>>>({
             { Ship::LEFT_STICK,
@@ -355,11 +362,17 @@ OTRGlobals::OTRGlobals() {
             { BTN_DDOWN, { SDL_CONTROLLER_BUTTON_DPAD_DOWN } },
             { BTN_DLEFT, { SDL_CONTROLLER_BUTTON_DPAD_LEFT } },
             { BTN_DRIGHT, { SDL_CONTROLLER_BUTTON_DPAD_RIGHT } },
-            { BTN_CLEFT, { SDL_CONTROLLER_BUTTON_Y } },
-            { BTN_CDOWN, { SDL_CONTROLLER_BUTTON_RIGHTSHOULDER } },
-            { BTN_CRIGHT, { SDL_CONTROLLER_BUTTON_RIGHTSTICK } },
+            { BTN_R, { SDL_CONTROLLER_BUTTON_RIGHTSHOULDER } },
             { BTN_CUP, { SDL_CONTROLLER_BUTTON_BACK } },
-            { BTN_CUSTOM_REMIX_JUMP, { SDL_CONTROLLER_BUTTON_X } },
+            // X jumps (like Breath of the Wild), Y is kept for future mechanics
+            { BTN_CUSTOM_REMIX_X, { SDL_CONTROLLER_BUTTON_X } },
+            { BTN_CUSTOM_REMIX_Y, { SDL_CONTROLLER_BUTTON_Y } },
+            // The Ocarina is played with A, Y, X, L, R (like the 3DS version)
+            { BTN_CUSTOM_OCARINA_NOTE_D4, { SDL_CONTROLLER_BUTTON_A } },
+            { BTN_CUSTOM_OCARINA_NOTE_F4, { SDL_CONTROLLER_BUTTON_Y } },
+            { BTN_CUSTOM_OCARINA_NOTE_A4, { SDL_CONTROLLER_BUTTON_X } },
+            { BTN_CUSTOM_OCARINA_NOTE_B4, { SDL_CONTROLLER_BUTTON_LEFTSHOULDER } },
+            { BTN_CUSTOM_OCARINA_NOTE_D5, { SDL_CONTROLLER_BUTTON_RIGHTSHOULDER } },
         }),
         std::unordered_map<Ship::StickIndex, std::vector<std::pair<Ship::Direction, SDL_GameControllerButton>>>(),
         std::unordered_map<CONTROLLERBUTTONS_T, std::vector<std::pair<SDL_GameControllerAxis, int32_t>>>({
@@ -380,7 +393,8 @@ OTRGlobals::OTRGlobals() {
         BTN_CUSTOM_OCARINA_DISABLE_SONGS,
         BTN_CUSTOM_OCARINA_PITCH_UP,
         BTN_CUSTOM_OCARINA_PITCH_DOWN,
-        BTN_CUSTOM_REMIX_JUMP,
+        BTN_CUSTOM_REMIX_X,
+        BTN_CUSTOM_REMIX_Y,
     }),
     remixDefaultMappings,
     std::unordered_map<CONTROLLERBUTTONS_T, std::string>({
