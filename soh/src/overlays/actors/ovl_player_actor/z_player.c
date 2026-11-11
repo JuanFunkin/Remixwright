@@ -6247,6 +6247,9 @@ s32 Player_ActionHandler_Talk(Player* this, PlayState* play) {
 }
 
 s32 func_8083B8F4(Player* this, PlayState* play) {
+    // Remix of Harkinian: the first person look view no longer exists, the free camera replaces it
+    return 0;
+
     if (!(this->stateFlags1 & (PLAYER_STATE1_CARRYING_ACTOR | PLAYER_STATE1_ON_HORSE)) &&
         Camera_CheckValidMode(Play_GetCamera(play, 0), 6)) {
         if ((this->actor.bgCheckFlags & BGCHECKFLAG_GROUND) ||
