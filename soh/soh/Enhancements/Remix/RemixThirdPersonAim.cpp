@@ -5,6 +5,7 @@
 #include <libultraship/bridge/consolevariablebridge.h>
 
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
+#include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include "soh/ShipInit.hpp"
 #include "soh/cvar_prefixes.h"
 
@@ -100,7 +101,20 @@ static void OnFrameUpdate() {
     gPlayState->camY += (targetPitch - gPlayState->camY) * 0.4f;
 }
 
+// Aiming while walking is a walk, not a run: the speed is capped to a walking pace and does not go through the
+// sprint.
+static void RegisterAimSpeed() {
+    COND_VB_SHOULD(VB_PLAYER_MODIFY_FIRST_PERSON_SPEED, true, {
+        Player* player = va_arg(args, Player*);
+        f32* speedTarget = va_arg(args, f32*);
+        if (sActive && player != nullptr && speedTarget != nullptr) {
+            *speedTarget = CLAMP_MAX(*speedTarget, 6.0f);
+        }
+    });
+}
+
 static void RegisterRemixThirdPersonAim() {
+    RegisterAimSpeed();
     GameInteractor::Instance->RegisterGameHook<GameInteractor::OnGameFrameUpdate>(OnFrameUpdate);
     GameInteractor::Instance->RegisterGameHook<GameInteractor::OnSceneInit>([](int16_t) { sActive = false; });
 }
