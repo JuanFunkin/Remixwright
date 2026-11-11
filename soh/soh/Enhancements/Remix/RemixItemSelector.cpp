@@ -21,7 +21,9 @@ extern "C" {
 #include "variables.h"
 #include "seqcmd.h"
 #include "sequence.h"
+#include "src/overlays/actors/ovl_player_actor/z_player.h"
 extern SaveContext gSaveContext;
+void Player_UseItem(PlayState* play, Player* this, s32 item);
 }
 
 namespace {
@@ -73,20 +75,26 @@ void BuildItems() {
 void SetButton(PlayState* play, int button, int item, int slot) {
     gSaveContext.equips.buttonItems[button] = static_cast<u8>(item);
     gSaveContext.equips.cButtonSlots[button - 1] = static_cast<u8>(slot);
-    gSaveContext.buttonStatus[button + 1] = (item == ITEM_NONE) ? BTN_DISABLED : BTN_ENABLED;
+    // buttonStatus: 0 = B, 1..3 = C buttons, 4 = A, 5..8 = D-pad
+    gSaveContext.buttonStatus[button <= 3 ? button : button + 1] = (item == ITEM_NONE) ? BTN_DISABLED : BTN_ENABLED;
     if (item != ITEM_NONE) {
         Interface_LoadItemIcon1(play, static_cast<u16>(button));
     }
 }
 
 // There is a single item button now (and the D-pad): the other C buttons stay empty and out of the HUD
-void ClearUnusedButtons() {
+void ClearUnusedButtons(PlayState* play) {
     for (int button = 2; button <= 3; button++) {
         if (gSaveContext.equips.buttonItems[button] != ITEM_NONE) {
             gSaveContext.equips.buttonItems[button] = ITEM_NONE;
             gSaveContext.equips.cButtonSlots[button - 1] = SLOT_NONE;
-            gSaveContext.buttonStatus[button + 1] = BTN_DISABLED;
+            gSaveContext.buttonStatus[button] = BTN_DISABLED;
         }
+    }
+
+    // The Ocarina is on D-pad left from the moment Link has it, unless the player put something else there
+    if (gSaveContext.inventory.items[SLOT_OCARINA] != ITEM_NONE && gSaveContext.equips.buttonItems[kDpadLeft] == ITEM_NONE) {
+        SetButton(play, kDpadLeft, gSaveContext.inventory.items[SLOT_OCARINA], SLOT_OCARINA);
     }
 }
 
@@ -101,7 +109,7 @@ void Assign(PlayState* play, int button) {
         if (other != button && other != 2 && other != 3 && gSaveContext.equips.buttonItems[other] == chosen.item) {
             gSaveContext.equips.buttonItems[other] = ITEM_NONE;
             gSaveContext.equips.cButtonSlots[other - 1] = SLOT_NONE;
-            gSaveContext.buttonStatus[other + 1] = BTN_DISABLED;
+            gSaveContext.buttonStatus[other <= 3 ? other : other + 1] = BTN_DISABLED;
         }
     }
     SetButton(play, button, chosen.item, chosen.slot);
@@ -146,8 +154,8 @@ extern "C" int RemixItemSelector_Update(PlayState* play) {
     }
     Input* in = &play->state.input[0];
 
-    if (CanOpen(play) || sOpen) {
-        ClearUnusedButtons();
+    if (play->csCtx.state == CS_STATE_IDLE) {
+        ClearUnusedButtons(play);
     }
 
     if (!sOpen) {
@@ -191,7 +199,11 @@ extern "C" int RemixItemSelector_Update(PlayState* play) {
 
     bool close = false;
     if (CHECK_BTN_ALL(in->press.button, BTN_A)) {
+        // Take the item in hand right now. It sits on the hidden item button so the game keeps it out.
         Assign(play, kItemButton);
+        Player* player = GET_PLAYER(play);
+        player->heldItemButton = kItemButton;
+        Player_UseItem(play, player, sItems[std::clamp(sSelected, 0, static_cast<int>(sItems.size()) - 1)].item);
         close = true;
     } else if (CHECK_BTN_ALL(in->press.button, BTN_DUP)) {
         Assign(play, kDpadUp);
