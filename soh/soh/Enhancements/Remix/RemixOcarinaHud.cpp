@@ -121,8 +121,48 @@ ImTextureID CustomTexture(const char* name) {
     return gui->GetTextureByName(name);
 }
 
+// One of the game's own textures, tinted. Loaded the first time it is asked for.
+ImTextureID GameTexture(const char* name, const char* path, ImVec4 tint) {
+    auto gui = std::dynamic_pointer_cast<Fast::Fast3dGui>(Ship::Context::GetRawInstance()->GetWindow()->GetGui());
+    if (gui == nullptr) {
+        return nullptr;
+    }
+    if (!gui->HasTextureByName(name)) {
+        gui->LoadGuiTexture(name, path, "", tint);
+    }
+    return gui->GetTextureByName(name);
+}
+
 // The glyph of one of the game's ocarina buttons: 0 = A, 1 = C-Down, 2 = C-Right, 3 = C-Left, 4 = C-Up
 void DrawNoteGlyph(ImDrawList* dl, ImVec2 c, float r, int button) {
+    // The game's own button art: the round button with the A symbol, and the C arrows
+    {
+        const ImVec2 a(c.x - r, c.y - r);
+        const ImVec2 b(c.x + r, c.y + r);
+        if (button == 0) {
+            ImTextureID bg = GameTexture("RemixGlyphABg", "__OTR__textures/parameter_static/gButtonBackgroundTex",
+                                         ImVec4(0.27f, 0.58f, 1.0f, 1.0f));
+            ImTextureID sym = GameTexture("RemixGlyphASym", "__OTR__textures/parameter_static/gABtnSymbolTex",
+                                          ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+            if (bg != nullptr && sym != nullptr) {
+                dl->AddImage(bg, a, b);
+                dl->AddImage(sym, ImVec2(c.x - r * 0.75f, c.y - r * 0.5f), ImVec2(c.x + r * 0.75f, c.y + r * 0.5f));
+                return;
+            }
+        } else {
+            static const char* const names[] = { "", "RemixGlyphCDown", "RemixGlyphCRight", "RemixGlyphCLeft",
+                                                 "RemixGlyphCUp" };
+            static const char* const paths[] = { "", "__OTR__textures/parameter_static/gEmptyCDownArrowTex",
+                                                 "__OTR__textures/parameter_static/gEmptyCRightArrowTex",
+                                                 "__OTR__textures/parameter_static/gEmptyCLeftArrowTex",
+                                                 "__OTR__textures/parameter_static/gEmptyCUpArrowTex" };
+            ImTextureID arrow = GameTexture(names[button], paths[button], ImVec4(1.0f, 0.8f, 0.24f, 1.0f));
+            if (arrow != nullptr) {
+                dl->AddImage(arrow, a, b);
+                return;
+            }
+        }
+    }
     if (button == 0) {
         dl->AddCircleFilled(c, r, IM_COL32(70, 150, 255, 255), 24);
         dl->AddCircle(c, r, IM_COL32(255, 255, 255, 230), 24, 1.5f);
@@ -216,15 +256,15 @@ void DrawHints(ImDrawList* dl, ImVec2 vpPos, ImVec2 vpSize, float unit, bool son
     Hint hints[4];
     int n = 0;
     if (!songbook) {
-        hints[n++] = { "Check songbook", { "ZL" }, 1 };
+        hints[n++] = { "Check songbook", { "Z" }, 1 };
         hints[n++] = { "Play a note", { "CL", "CU", "CR", "CD", "A" }, 5 };
         hints[n++] = { "Cancel", { "B" }, 1 };
     } else {
-        hints[n++] = { "Choose a song", { "<", ">" }, 2 };
+        hints[n++] = { "Choose a song", { "Stick" }, 1 };
         if (Known(kSongs[sSelected])) {
             hints[n++] = { "Listen to the melody", { "A" }, 1 };
         }
-        hints[n++] = { "Close the songbook", { "ZL" }, 1 };
+        hints[n++] = { "Close the songbook", { "Z" }, 1 };
         hints[n++] = { "Cancel", { "B" }, 1 };
     }
 
@@ -275,11 +315,16 @@ void DrawSongIcon(ImDrawList* dl, ImVec2 c, float r, int index, bool known, bool
     } else {
         dl->AddCircleFilled(c, r, IM_COL32(25, 25, 28, 235), 32);
         if (known) {
-            dl->AddCircleFilled(c, r * 0.62f, s.color, 32);
-            // A small note
-            dl->AddCircleFilled(ImVec2(c.x - r * 0.12f, c.y + r * 0.18f), r * 0.17f, IM_COL32(25, 25, 28, 255), 16);
-            dl->AddLine(ImVec2(c.x + r * 0.04f, c.y + r * 0.14f), ImVec2(c.x + r * 0.04f, c.y - r * 0.32f),
-                        IM_COL32(25, 25, 28, 255), std::max(1.5f, r * 0.07f));
+            dl->AddCircleFilled(c, r * 0.80f, s.color, 32);
+            // The game's own note icon, the one of the pause menu
+            const ImU32 col = s.color;
+            const ImVec4 tint(1.0f, 1.0f, 1.0f, 1.0f);
+            ImTextureID note = GameTexture("RemixSongNote", "__OTR__textures/icon_item_static/gSongNoteTex", tint);
+            if (note != nullptr) {
+                dl->AddImage(note, ImVec2(c.x - r * 0.62f, c.y - r * 0.62f), ImVec2(c.x + r * 0.62f, c.y + r * 0.62f),
+                             ImVec2(0, 0), ImVec2(1, 1), IM_COL32(25, 25, 28, 255));
+                (void)col;
+            }
         } else {
             DrawText(dl, r * 1.1f, ImVec2(c.x - r * 0.22f, c.y - r * 0.55f), IM_COL32(150, 150, 150, 255), "?");
         }
@@ -306,66 +351,67 @@ void DrawSongbook(ImDrawList* dl, ImVec2 vpPos, ImVec2 vpSize, float unit) {
         DrawSongIcon(dl, c, iconR * (i == sSelected ? 1.18f : 1.0f), i, Known(kSongs[i]), i == sSelected);
     }
 
-    // Parchment
+    // Parchment: the texture already has the staff and the clef drawn on it
     const SongEntry& s = kSongs[sSelected];
     const bool known = Known(s);
-    const float pw = 560.0f * unit;
-    const float ph = 215.0f * unit;
-    ImVec2 p0(cx - pw * 0.5f, vpPos.y + vpSize.y * 0.50f);
-    ImVec2 p1(p0.x + pw, p0.y + ph);
     ImTextureID parchment = CustomTexture("RemixParchment");
+    const float pw = 580.0f * unit;
+    const float ph = parchment != nullptr ? pw * 233.0f / 635.0f : 215.0f * unit;
+    ImVec2 p0(cx - pw * 0.5f, vpPos.y + vpSize.y * 0.52f);
+    ImVec2 p1(p0.x + pw, p0.y + ph);
     if (parchment != nullptr) {
         dl->AddImage(parchment, p0, p1);
     } else {
         dl->AddRectFilled(p0, p1, IM_COL32(236, 224, 190, 245), 10.0f * unit);
         dl->AddRect(p0, p1, IM_COL32(150, 120, 70, 255), 10.0f * unit, 0, 3.0f);
-        dl->AddRect(ImVec2(p0.x + 8.0f * unit, p0.y + 8.0f * unit), ImVec2(p1.x - 8.0f * unit, p1.y - 8.0f * unit),
-                    IM_COL32(190, 160, 105, 255), 6.0f * unit, 0, 1.5f);
     }
 
     const ImU32 ink = IM_COL32(70, 50, 30, 255);
     const char* title = known ? s.name : "???";
     {
-        const float size = 28.0f * unit;
+        // The name over the parchment
+        const float size = 30.0f * unit;
         float w = TextWidth(size, title);
-        dl->AddText(ImGui::GetFont(), size, ImVec2(cx - w * 0.5f, p0.y + 14.0f * unit), ink, title);
+        DrawText(dl, size, ImVec2(cx - w * 0.5f, p0.y - 44.0f * unit), IM_COL32(255, 255, 255, 255), title);
     }
 
-    // The staff, with the notes in order. Five lines, low note at the bottom.
-    const float staffL = p0.x + 90.0f * unit;
-    const float staffR = p1.x - 40.0f * unit;
-    const float staffTop = p0.y + 62.0f * unit;
-    const float lineGap = 14.0f * unit;
-    for (int i = 0; i < 5; i++) {
-        float y = staffTop + lineGap * i;
-        dl->AddLine(ImVec2(staffL - 40.0f * unit, y), ImVec2(staffR, y), IM_COL32(70, 50, 30, 200), 1.4f);
-    }
-    ImTextureID clef = CustomTexture("RemixClef");
-    if (clef != nullptr) {
-        dl->AddImage(clef, ImVec2(staffL - 52.0f * unit, staffTop - 16.0f * unit),
-                     ImVec2(staffL - 8.0f * unit, staffTop + lineGap * 4 + 16.0f * unit));
+    // The five lines of the texture (measured on the 635 x 233 image), low note on the bottom line
+    float staffTop;
+    float lineGap;
+    float staffL;
+    float staffR;
+    if (parchment != nullptr) {
+        staffTop = p0.y + ph * (78.0f / 233.0f);
+        lineGap = ph * (21.75f / 233.0f);
+        staffL = p0.x + pw * (165.0f / 635.0f);
+        staffR = p0.x + pw * (545.0f / 635.0f);
+    } else {
+        staffL = p0.x + 90.0f * unit;
+        staffR = p1.x - 40.0f * unit;
+        staffTop = p0.y + 62.0f * unit;
+        lineGap = 14.0f * unit;
+        for (int i = 0; i < 5; i++) {
+            float y = staffTop + lineGap * i;
+            dl->AddLine(ImVec2(staffL - 40.0f * unit, y), ImVec2(staffR, y), IM_COL32(70, 50, 30, 200), 1.4f);
+        }
     }
 
     if (known) {
         const OcarinaSongButtons& song = gOcarinaSongButtons[s.songId];
         const int count = std::max<int>(1, song.numButtons);
-        const float step = (staffR - staffL - 20.0f * unit) / std::max(count, 6);
+        const float step = (staffR - staffL) / std::max(count, 6);
+        const float noteR = lineGap * 0.62f;
         for (int i = 0; i < song.numButtons; i++) {
             int btn = std::clamp<int>(song.buttonsIndex[i], 0, 4);
-            // Low notes sit on the bottom line, high ones on the top line
             float y = staffTop + lineGap * (4 - btn);
             float x = staffL + step * (i + 0.5f);
-            // While the melody is being shown, the current note lights up and pops
-            float pop = 1.0f;
+            // While the melody plays, the current note lights up
             const bool lit = DemoNoteIndex() == i;
+            const float pop = lit ? 1.3f : 1.0f;
             if (lit) {
-                pop = 1.3f;
+                dl->AddCircleFilled(ImVec2(x, y), noteR * 1.9f, IM_COL32(255, 235, 140, 170), 24);
             }
-            if (lit) {
-                dl->AddCircleFilled(ImVec2(x, y), 20.0f * unit * pop, IM_COL32(255, 235, 140, 150), 24);
-            }
-            dl->AddCircleFilled(ImVec2(x, y), 13.0f * unit * pop, lit ? IM_COL32(70, 55, 30, 255) : IM_COL32(35, 30, 28, 255), 24);
-            DrawNoteGlyph(dl, ImVec2(x, y), 9.0f * unit * pop, btn);
+            DrawNoteGlyph(dl, ImVec2(x, y), noteR * pop, btn);
         }
     } else {
         const char* t = "You have not learned this song yet.";
@@ -375,9 +421,9 @@ void DrawSongbook(ImDrawList* dl, ImVec2 vpPos, ImVec2 vpSize, float unit) {
     }
 
     if (known) {
-        const float size = 18.0f * unit;
+        const float size = 17.0f * unit;
         float w = TextWidth(size, s.description);
-        dl->AddText(ImGui::GetFont(), size, ImVec2(cx - w * 0.5f, p1.y - 38.0f * unit), ink, s.description);
+        dl->AddText(ImGui::GetFont(), size, ImVec2(cx - w * 0.5f, p1.y - ph * (46.0f / 233.0f)), ink, s.description);
     }
 }
 
