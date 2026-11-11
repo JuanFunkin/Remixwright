@@ -11,6 +11,7 @@
 
 extern "C" {
 #include "include/z64audio.h"
+#include "soh/Enhancements/Remix/RemixOcarinaMic.h"
 #include "variables.h"
 }
 
@@ -193,6 +194,36 @@ void SohMenu::AddMenuSettings() {
     AddWidget(path, "Reset Button Combination:", WIDGET_CVAR_BTN_SELECTOR)
         .CVar("gSettings.ResetBtn")
         .Options(BtnSelectorOptions().DefaultValue(BTN_CUSTOM_MODIFIER2));
+    AddWidget(path, "Ocarina Microphone", WIDGET_SEPARATOR_TEXT);
+    AddWidget(path, "Play Ocarina with Microphone", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_SETTING("RemixOcarinaMic.Enabled"))
+        .Options(CheckboxOptions().Tooltip(
+            "Lets you hum, whistle or play the tune into the microphone to play the Ocarina. The pitch you sing is "
+            "turned into the closest of the five notes, in any octave.\n\n"
+            "The microphone is only used while the Ocarina is out, and is never recorded or saved. Turning this "
+            "option on is the permission to use it."));
+    {
+        // The microphones this computer has at the moment the menu is built
+        static std::vector<std::string> micNames;
+        static std::map<int32_t, const char*> micOptions;
+        micNames.clear();
+        micOptions.clear();
+        const int count = RemixOcarinaMic_GetDeviceCount();
+        for (int i = 0; i < count; i++) {
+            micNames.push_back(RemixOcarinaMic_GetDeviceName(i));
+        }
+        micOptions[0] = "Default microphone";
+        for (int i = 0; i < count; i++) {
+            micOptions[i + 1] = micNames[i].c_str();
+        }
+        AddWidget(path, "Microphone", WIDGET_CVAR_COMBOBOX)
+            .CVar(CVAR_SETTING("RemixOcarinaMic.Device"))
+            .Options(ComboboxOptions()
+                         .ComboMap(micOptions)
+                         .DefaultIndex(0)
+                         .Tooltip("The microphone used to play the Ocarina. If nothing is heard with the default one, "
+                                  "pick your microphone from this list. The list is read when the game starts."));
+    }
     AddWidget(path, "Open App Files Folder", WIDGET_BUTTON)
         .RaceDisable(false)
         .Callback([](WidgetInfo& info) {
