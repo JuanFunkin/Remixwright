@@ -22,6 +22,7 @@ extern "C" {
 #include "seqcmd.h"
 #include "sequence.h"
 extern SaveContext gSaveContext;
+extern PlayState* gPlayState;
 void Player_UseItem(PlayState* play, Player* this, s32 item);
 }
 
@@ -259,7 +260,51 @@ float TextW(float size, const char* t) {
 
 } // namespace
 
+// The item button: a box with the item inside, used with ZR. It lives on the hidden C-Left slot of the game, but it
+// is drawn here and it is not a C button for the player.
+static void DrawItemBox() {
+    if (gPlayState == nullptr || !Enabled()) {
+        return;
+    }
+    PlayState* play = gPlayState;
+    if (play->pauseCtx.state != 0 || play->csCtx.state != CS_STATE_IDLE || gSaveContext.gameMode != 0 ||
+        play->gameOverCtx.state != GAMEOVER_INACTIVE) {
+        return;
+    }
+    const int item = gSaveContext.equips.buttonItems[kItemButton];
+    if (item == ITEM_NONE) {
+        return;
+    }
+    const float hud = std::min(1.0f, play->interfaceCtx.healthAlpha / 255.0f);
+    if (hud <= 0.01f) {
+        return;
+    }
+    const bool usable = gSaveContext.buttonStatus[kItemButton] != BTN_DISABLED;
+
+    ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImDrawList* dl = ImGui::GetBackgroundDrawList(vp);
+    const float unit = vp->Size.y / 720.0f;
+    const float size = 74.0f * unit;
+    const ImVec2 min(vp->Pos.x + vp->Size.x - size - 40.0f * unit, vp->Pos.y + vp->Size.y - size - 70.0f * unit);
+    const ImVec2 max(min.x + size, min.y + size);
+    const int a = static_cast<int>(255 * hud);
+
+    dl->AddRectFilled(min, max, IM_COL32(10, 14, 20, static_cast<int>(185 * hud)), 10.0f * unit);
+    dl->AddRect(min, max, IM_COL32(235, 225, 190, static_cast<int>(240 * hud)), 10.0f * unit, 0, 3.0f * unit);
+    ImTextureID tex = IconFor(item);
+    const float pad = 9.0f * unit;
+    if (tex != nullptr) {
+        dl->AddImage(tex, ImVec2(min.x + pad, min.y + pad), ImVec2(max.x - pad, max.y - pad), ImVec2(0, 0),
+                     ImVec2(1, 1), usable ? IM_COL32(255, 255, 255, a) : IM_COL32(120, 120, 120, a));
+    }
+    const float ts = 18.0f * unit;
+    const char* label = "ZR";
+    dl->AddText(ImGui::GetFont(), ts, ImVec2(min.x + (size - TextW(ts, label)) * 0.5f, max.y + 4.0f * unit),
+                IM_COL32(255, 255, 255, a), label);
+}
+
 void RemixItemSelector_Draw() {
+    DrawItemBox();
     if (!sOpen || sItems.empty()) {
         return;
     }
