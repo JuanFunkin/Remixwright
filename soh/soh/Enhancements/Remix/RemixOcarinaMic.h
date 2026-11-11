@@ -29,6 +29,11 @@ float RemixOcarinaMic_GetPitchLevel(void);
 // Loudness of the microphone, 0.0 to 1.0
 float RemixOcarinaMic_GetVolume(void);
 
+// The microphones the computer has. The device the player picked is the CVar RemixOcarinaMic.Device:
+// 0 = the default microphone, 1 and up = the microphone with that number in this list (counting from 1).
+int RemixOcarinaMic_GetDeviceCount(void);
+const char* RemixOcarinaMic_GetDeviceName(int index); // index 0 .. count - 1
+
 #ifdef __cplusplus
 }
 #endif
