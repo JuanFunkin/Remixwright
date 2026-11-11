@@ -1082,6 +1082,44 @@ void RemixFileSelect_Draw() {
             float h = vp->Size.y * 0.46f;
             float w = h * aspect;
             ImVec2 p0(vp->Pos.x + vp->Size.x * 0.5f - w * 0.5f, vp->Pos.y + vp->Size.y * 0.06f);
+            // The fire behind the logo: a glow that flickers, and embers that rise from it
+            {
+                const std::string fireName = "RemixTitleFire";
+                if (!gui->HasTextureByName(fireName)) {
+                    gui->LoadGuiTexture(fireName, "__OTR__textures/remix/RemixTitleFire");
+                }
+                ImTextureID fire = gui->GetTextureByName(fireName);
+                const float t = static_cast<float>(ImGui::GetTime());
+                const float fade = sState.logoAlpha / 255.0f;
+                if (fire != nullptr) {
+                    const float grow = 1.0f / 1.3f; // the glow image has 30% of margin around the logo
+                    for (int layer = 0; layer < 3; layer++) {
+                        const float flick = 0.5f + 0.5f * std::sin(t * (3.1f + layer * 1.7f) + layer * 2.1f);
+                        const float sc = 1.0f + 0.035f * layer + 0.02f * flick;
+                        const float fw = w / grow * sc;
+                        const float fh = h / grow * sc;
+                        const float cxl = p0.x + w * 0.5f;
+                        const float cyl = p0.y + h * 0.5f - h * 0.015f * flick * (layer + 1);
+                        const int alpha = static_cast<int>(sState.logoAlpha * (0.28f + 0.22f * flick));
+                        dl->AddImage(fire, ImVec2(cxl - fw * 0.5f, cyl - fh * 0.5f),
+                                     ImVec2(cxl + fw * 0.5f, cyl + fh * 0.5f), ImVec2(0, 0), ImVec2(1, 1),
+                                     IM_COL32(255, 255, 255, alpha));
+                    }
+                }
+                for (int i = 0; i < 36; i++) {
+                    const float seed = static_cast<float>(i) * 12.9898f;
+                    const float rx = std::fmod(std::sin(seed) * 43758.5453f, 1.0f);
+                    const float rs = std::fmod(std::sin(seed * 1.7f) * 24634.6345f, 1.0f);
+                    const float life = 2.2f + std::fabs(rs) * 2.0f;
+                    const float ph = std::fmod(t / life + std::fabs(rx), 1.0f);
+                    const float x = p0.x + w * (0.12f + 0.76f * std::fabs(rx)) + std::sin(t * 1.3f + seed) * w * 0.012f;
+                    const float y = p0.y + h * (0.95f - 0.85f * ph);
+                    const float a2 = (1.0f - ph) * std::min(1.0f, ph * 6.0f) * fade;
+                    const float r2 = vp->Size.y * (0.0025f + std::fabs(rs) * 0.003f) * (1.0f - ph * 0.5f);
+                    dl->AddCircleFilled(ImVec2(x, y), r2 * 2.6f, IM_COL32(255, 120, 30, static_cast<int>(60 * a2)), 12);
+                    dl->AddCircleFilled(ImVec2(x, y), r2, IM_COL32(255, 220, 120, static_cast<int>(230 * a2)), 10);
+                }
+            }
             dl->AddImage(logo, p0, ImVec2(p0.x + w, p0.y + h), ImVec2(0, 0), ImVec2(1, 1),
                          IM_COL32(255, 255, 255, sState.logoAlpha));
         }
