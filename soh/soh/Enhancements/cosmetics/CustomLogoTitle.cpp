@@ -150,6 +150,16 @@ extern "C" void CustomLogoTitle_Main(TitleContext* titleContext) {
     gSPSegment(POLY_OPA_DISP++, 0, (uintptr_t)NULL);
     gSPSegment(POLY_OPA_DISP++, 1, (uintptr_t)titleContext->staticSegment);
     Gfx_SetupFrame(titleContext->state.gfxCtx, 0, 0, 0);
+    if (logoToDraw == LOGO_TO_DRAW_REMIX) {
+        // The Remix logo is quicker than the other ones: a short fade in, a short stay, a short fade out
+        if (titleContext->coverAlpha == 255 && titleContext->addAlpha == -3 && titleContext->visibleDuration == 0x3C) {
+            titleContext->addAlpha = -26;
+            titleContext->visibleDuration = 22;
+        }
+        if (titleContext->addAlpha == 3) {
+            titleContext->addAlpha = 26;
+        }
+    }
     Title_Calc(titleContext);
     if (logoToDraw == LOGO_TO_DRAW_REMIX) {
         // Black screen, the logo is drawn by RemixBootLogo and follows the same fade in and out
