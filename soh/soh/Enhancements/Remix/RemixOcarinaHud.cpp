@@ -154,23 +154,27 @@ void DrawNoteGlyph(ImDrawList* dl, ImVec2 c, float r, int button) {
                 return;
             }
         } else {
-            static const char* const names[] = { "", "RemixGlyphCDown", "RemixGlyphCRight", "RemixGlyphCLeft",
-                                                 "RemixGlyphCUp" };
-            static const char* const paths[] = { "", "__OTR__textures/parameter_static/gEmptyCDownArrowTex",
-                                                 "__OTR__textures/parameter_static/gEmptyCRightArrowTex",
-                                                 "__OTR__textures/parameter_static/gEmptyCLeftArrowTex",
-                                                 "__OTR__textures/parameter_static/gEmptyCLeftArrowTex" };
-            ImTextureID arrow = GameTexture(names[button], paths[button], ImVec4(1.0f, 0.8f, 0.24f, 1.0f));
-            if (arrow != nullptr) {
-                if (button == 4) {
-                    // The game has no up arrow: the left one turned a quarter
-                    dl->AddImageQuad(arrow, a, ImVec2(b.x, a.y), b, ImVec2(a.x, b.y), ImVec2(0, 1), ImVec2(0, 0),
-                                     ImVec2(1, 0), ImVec2(1, 1));
-                } else {
-                    dl->AddImage(arrow, a, b);
-                }
-                return;
+            // The Ocarina is played with A, Y, X, L and R: the round button of the game, tinted, with its letter
+            static const char* const letters[] = { "A", "Y", "X", "L", "R" };
+            static const ImVec4 tints[] = { ImVec4(0.27f, 0.58f, 1.0f, 1.0f), ImVec4(0.95f, 0.78f, 0.2f, 1.0f),
+                                            ImVec4(0.95f, 0.5f, 0.2f, 1.0f), ImVec4(0.55f, 0.75f, 0.55f, 1.0f),
+                                            ImVec4(0.55f, 0.75f, 0.55f, 1.0f) };
+            static const char* const names[] = { "", "RemixGlyphY", "RemixGlyphX", "RemixGlyphL", "RemixGlyphR" };
+            ImTextureID bg = GameTexture(names[button], "__OTR__textures/parameter_static/gButtonBackgroundTex",
+                                         tints[button]);
+            if (bg != nullptr) {
+                dl->AddImage(bg, a, b);
+            } else {
+                dl->AddCircleFilled(c, r, ImGui::ColorConvertFloat4ToU32(tints[button]), 24);
             }
+            ImFont* font = ImGui::GetFont();
+            const float size = r * 1.25f;
+            const ImVec2 ts = font->CalcTextSizeA(size, FLT_MAX, 0.0f, letters[button]);
+            dl->AddText(font, size, ImVec2(c.x - ts.x * 0.5f + 1.0f, c.y - ts.y * 0.5f + 1.0f), IM_COL32(0, 0, 0, 160),
+                        letters[button]);
+            dl->AddText(font, size, ImVec2(c.x - ts.x * 0.5f, c.y - ts.y * 0.5f), IM_COL32(255, 255, 255, 255),
+                        letters[button]);
+            return;
         }
     }
     if (button == 0) {
