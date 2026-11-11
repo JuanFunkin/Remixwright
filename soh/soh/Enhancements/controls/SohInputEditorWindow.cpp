@@ -1625,6 +1625,11 @@ void SohInputEditorWindow::DrawLinkTab() {
             DrawButtonLine("M2", portIndex, BTN_CUSTOM_MODIFIER2);
         }
 
+        if (ImGui::CollapsingHeader("X and Y Buttons", NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
+            DrawButtonLine("X (jump)", portIndex, BTN_CUSTOM_REMIX_X);
+            DrawButtonLine("Y (future use)", portIndex, BTN_CUSTOM_REMIX_Y);
+        }
+
         if (ImGui::CollapsingHeader("Ocarina Controls")) {
             DrawOcarinaControlPanel();
         }
