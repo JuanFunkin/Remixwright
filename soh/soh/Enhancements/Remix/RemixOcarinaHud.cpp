@@ -128,6 +128,10 @@ ImTextureID GameTexture(const char* name, const char* path, ImVec4 tint) {
         return nullptr;
     }
     if (!gui->HasTextureByName(name)) {
+        // Loading a resource that is not there can take the game down, so look first
+        if (!ResourceMgr_FileExists(path)) {
+            return nullptr;
+        }
         gui->LoadGuiTexture(name, path, "", tint);
     }
     return gui->GetTextureByName(name);
@@ -142,7 +146,7 @@ void DrawNoteGlyph(ImDrawList* dl, ImVec2 c, float r, int button) {
         if (button == 0) {
             ImTextureID bg = GameTexture("RemixGlyphABg", "__OTR__textures/parameter_static/gButtonBackgroundTex",
                                          ImVec4(0.27f, 0.58f, 1.0f, 1.0f));
-            ImTextureID sym = GameTexture("RemixGlyphASym", "__OTR__textures/parameter_static/gABtnSymbolTex",
+            ImTextureID sym = GameTexture("RemixGlyphASym", "__OTR__textures/icon_item_static/gABtnSymbolTex",
                                           ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
             if (bg != nullptr && sym != nullptr) {
                 dl->AddImage(bg, a, b);
