@@ -16,6 +16,45 @@ static uint8_t rocsUseCount = 0;
 static uint8_t groundTimer = 0;
 static f32 effectsScale = 1.0f;
 
+// The Roc's Feather jump, used by the item and by the X button of Remix of Harkinian (no item or option needed).
+// Returns false when the jump was already used in this airtime.
+extern "C" bool RocsFeather_Jump(Player* player) {
+    if (rocsUseCount >= MAX_ROCS_USES) {
+        return false;
+    }
+    rocsUseCount++;
+
+    func_80838940(player, (LinkAnimationHeader*)&gPlayerAnim_link_rocs_feather_jump, 5.8f, gPlayState, 0);
+
+    // Actionvar needed to prevent weird animation morph
+    player->av2.actionVar2 = 1;
+
+    // Move player forward on Roc's use
+    player->linearVelocity = 5.0f;
+    player->actor.world.rot.y = player->yaw = player->actor.shape.rot.y;
+
+    if (gSaveContext.linkAge == LINK_AGE_CHILD) {
+        player->actor.velocity.y = 7.0f;
+        effectsScale = 1.0f;
+    } else {
+        player->actor.velocity.y = 7.5f;
+        effectsScale = 1.5f;
+    }
+
+    Vec3f effectsPos = player->actor.home.pos;
+    effectsPos.y += 3;
+
+    EffectSsGRipple_Spawn(gPlayState, &effectsPos, static_cast<s16>(200 * effectsScale),
+                          static_cast<s16>(300 * effectsScale), 1);
+    EffectSsGSplash_Spawn(gPlayState, &effectsPos, NULL, NULL, 0, static_cast<s16>(150 * effectsScale));
+
+    // Remove hopping state when using Roc's after sidehop/backflip to allow grabbing ledges again
+    player->stateFlags2 &= ~(PLAYER_STATE2_HOPPING);
+
+    Player_PlaySfx(&player->actor, NA_SE_PL_SKIP);
+    return true;
+}
+
 void RegisterRocsFeather() {
     // Always register hooks - they only activate when ITEM_ROCS_FEATHER is actually used
     // Rando-specific logic (item pool, accessibility, etc.) is handled elsewhere
@@ -45,40 +84,7 @@ void RegisterRocsFeather() {
         if (usedItem == ITEM_ROCS_FEATHER) {
             *should = false;
 
-            if (rocsUseCount < MAX_ROCS_USES) {
-                rocsUseCount++;
-
-                Player* player = GET_PLAYER(gPlayState);
-
-                func_80838940(player, (LinkAnimationHeader*)&gPlayerAnim_link_rocs_feather_jump, 5.8f, gPlayState, 0);
-
-                // Actionvar needed to prevent weird animation morph
-                player->av2.actionVar2 = 1;
-
-                // Move player forward on Roc's use
-                player->linearVelocity = 5.0f;
-                player->actor.world.rot.y = player->yaw = player->actor.shape.rot.y;
-
-                if (gSaveContext.linkAge == LINK_AGE_CHILD) {
-                    player->actor.velocity.y = 7.0f;
-                    effectsScale = 1.0f;
-                } else {
-                    player->actor.velocity.y = 7.5f;
-                    effectsScale = 1.5f;
-                }
-
-                Vec3f effectsPos = player->actor.home.pos;
-                effectsPos.y += 3;
-
-                EffectSsGRipple_Spawn(gPlayState, &effectsPos, static_cast<s16>(200 * effectsScale),
-                                      static_cast<s16>(300 * effectsScale), 1);
-                EffectSsGSplash_Spawn(gPlayState, &effectsPos, NULL, NULL, 0, static_cast<s16>(150 * effectsScale));
-
-                // Remove hopping state when using Roc's after sidehop/backflip to allow grabbing ledges again
-                player->stateFlags2 &= ~(PLAYER_STATE2_HOPPING);
-
-                Player_PlaySfx(&player->actor, NA_SE_PL_SKIP);
-            }
+            RocsFeather_Jump(GET_PLAYER(gPlayState));
         }
     });
 
