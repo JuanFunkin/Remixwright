@@ -23,7 +23,7 @@ extern "C" {
 #include "sequence.h"
 extern SaveContext gSaveContext;
 extern PlayState* gPlayState;
-void Player_UseItem(PlayState* play, Player* this, s32 item);
+void Player_UseItem(PlayState* play, Player* player, s32 item);
 }
 
 namespace {
