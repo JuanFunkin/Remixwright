@@ -295,6 +295,7 @@ void Player_Action_80846408(Player* this, PlayState* play);
 void Player_Action_808464B0(Player* this, PlayState* play);
 void Player_Action_80846578(Player* this, PlayState* play);
 void Player_Action_8084B1D8(Player* this, PlayState* play);
+extern bool RocsFeather_Jump(Player* player);
 void Player_Action_Talk(Player* this, PlayState* play);
 void Player_Action_8084B78C(Player* this, PlayState* play);
 void Player_Action_8084B898(Player* this, PlayState* play);
@@ -12122,7 +12123,8 @@ void Player_UpdateCommon(Player* this, PlayState* play, Input* input) {
                                    PLAYER_STATE1_ON_HORSE | PLAYER_STATE1_CLIMBING_LEDGE)) &&
             !(this->stateFlags2 & PLAYER_STATE2_OCARINA_PLAYING) && (play->transitionTrigger == TRANS_TRIGGER_OFF) &&
             (sFloorType != 7) && (this->unk_6AD == 0)) {
-            func_8083A4A8(this, play);
+            // Same jump as the Roc's Feather, without needing the item
+            RocsFeather_Jump(this);
         }
 
         if (GameInteractor_Should(VB_EXECUTE_PLAYER_ACTION_FUNC, !(this->stateFlags3 & PLAYER_STATE3_PAUSE_ACTION_FUNC),
